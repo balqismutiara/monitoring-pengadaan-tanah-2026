@@ -2,16 +2,15 @@
 <img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
 </div>
 
-# Run and deploy your AI Studio app
+# Monitoring Pengadaan Tanah
 
-This contains everything you need to run your app locally.
+This repository contains the dashboard application "Monitoring Pengadaan Tanah" and instructions to run it locally.
 
 View your app in AI Studio: https://ai.studio/apps/3b490040-8b95-4aae-a965-fe11c6d16ac1
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
-
+**Prerequisites:** Node.js
 
 1. Install dependencies:
    `npm install`
