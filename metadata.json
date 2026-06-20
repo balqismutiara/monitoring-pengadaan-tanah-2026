@@ -1,0 +1,6 @@
+{
+  "name": "Monitoring Pengadaan Tanah 2026",
+  "description": "Dashboard monitoring progres program kerja, task, dan sub-task pengadaan tanah tahun 2026, disertai analisis progres, presentasi eksekutif, serta ekspor excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
