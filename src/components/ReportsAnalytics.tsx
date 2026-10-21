@@ -1609,59 +1609,6 @@ function ProgramReportCard({ program }: { program: ProgramReport }) {
   );
 }
 
-function MeterRow({
-  label,
-  sublabel,
-  done,
-  total,
-  avgPending,
-  active,
-  onClick,
-}: {
-  label: string;
-  sublabel?: string;
-  done: number;
-  total: number;
-  avgPending: number | null;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  const pending = total - done;
-  const rate = total ? Math.round((done / total) * 100) : 0;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-xl border px-3 py-2 text-left transition ${
-        active ? 'border-blue-300 bg-blue-50' : 'border-slate-100 bg-white hover:border-blue-200 hover:bg-slate-50'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="line-clamp-1 text-[10.5px] font-bold text-[#0B2A63]" title={label}>
-            {label}
-          </p>
-          {sublabel && <p className="line-clamp-1 text-[9px] text-slate-400">{sublabel}</p>}
-        </div>
-        <div className="shrink-0 text-right text-[9.5px]">
-          <span className="font-bold text-emerald-700">{done} selesai</span>
-          <span className="text-slate-300"> · </span>
-          <span className={`font-bold ${pending ? 'text-amber-700' : 'text-slate-400'}`}>{pending} pending</span>
-        </div>
-      </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-amber-100">
-          <div className="h-full rounded-full bg-emerald-500" style={{ width: `${rate}%` }} />
-        </div>
-        <span className="w-9 shrink-0 text-right text-[10px] font-extrabold text-[#0B2A63]">{rate}%</span>
-      </div>
-      {avgPending !== null && pending > 0 && (
-        <p className="mt-1 text-[9px] text-slate-500">Rata-rata progres pending: {avgPending}%</p>
-      )}
-    </button>
-  );
-}
-
 function AchievementPanel({
   report,
   tab,
@@ -1691,55 +1638,11 @@ function AchievementPanel({
     .sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || a.daysLeft - b.daysLeft);
   const rows: ReportItem[] = tab === 'achieved' ? achieved : pending;
 
-  const counts = {
-    DONE: achieved.length,
-    WIP: pending.filter(item => item.status === 'WIP').length,
-    NOT_STARTED: pending.filter(item => item.status === 'NOT_STARTED').length,
-    DELAYED: pending.filter(item => item.status === 'DELAYED').length,
-    total: scopeItems.length,
-  };
-  const rate = counts.total ? Math.round((counts.DONE / counts.total) * 100) : 0;
-  const avg = (list: ReportItem[]) =>
-    list.length ? Math.round(list.reduce((sum, item) => sum + item.progress, 0) / list.length) : null;
-  const avgPending = avg(pending);
-  const highPriority = pending.filter(item => item.priority === 'Tinggi').length;
 
   // Opsi task list mengikuti program terpilih.
   const taskOptions = programsInScope.flatMap(program =>
     program.tasks.map(task => ({ program: program.name, name: task.name })),
   );
-
-  // Rincian meter: per program (bila semua program) atau per task (bila satu program dipilih).
-  const breakdown =
-    programId === 'ALL'
-      ? report.programs.map(program => {
-          const items = [...program.achieved, ...program.pending];
-          return {
-            key: program.id,
-            label: program.name,
-            sublabel: `PIC ${program.pic}`,
-            done: program.achieved.length,
-            total: items.length,
-            avgPending: avg(program.pending),
-            onClick: () => onProgramChange(program.id),
-            active: false,
-          };
-        })
-      : programsInScope.flatMap(program =>
-          program.tasks.map(task => {
-            const items = [...program.achieved, ...program.pending].filter(item => item.taskName === task.name);
-            return {
-              key: `${program.id}-${task.name}`,
-              label: task.name,
-              sublabel: task.type,
-              done: items.filter(item => item.status === 'DONE').length,
-              total: items.length,
-              avgPending: avg(items.filter(item => item.status !== 'DONE')),
-              onClick: () => onTaskChange(taskName === task.name ? 'ALL' : task.name),
-              active: taskName === task.name,
-            };
-          }),
-        );
 
   return (
     <article className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
@@ -1800,60 +1703,7 @@ function AchievementPanel({
         </label>
       </div>
 
-      {/* METER */}
-      <div className="mt-3 grid grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-3 md:grid-cols-[150px_1fr]">
-        <div>
-          <Gauge actual={rate} baseline={null} size={150} label="Ketercapaian" />
-          <p className="text-center text-[10px] font-bold text-slate-500">Ketercapaian sub task</p>
-        </div>
-        <div className="min-w-0 space-y-2">
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-xl bg-white px-3 py-2">
-              <p className="text-[9.5px] text-slate-500">Terselesaikan</p>
-              <p className="text-[18px] font-extrabold text-emerald-700">{counts.DONE}</p>
-            </div>
-            <div className="rounded-xl bg-white px-3 py-2">
-              <p className="text-[9.5px] text-slate-500">Pending</p>
-              <p className="text-[18px] font-extrabold text-amber-700">{pending.length}</p>
-            </div>
-            <div className="rounded-xl bg-white px-3 py-2">
-              <p className="text-[9.5px] text-slate-500">Prioritas tinggi</p>
-              <p className={`text-[18px] font-extrabold ${highPriority ? 'text-red-600' : 'text-slate-400'}`}>{highPriority}</p>
-            </div>
-          </div>
-          <StatusSplitBar counts={counts} />
-          {avgPending !== null && (
-            <p className="text-[10px] text-slate-500">
-              Rata-rata progres pekerjaan pending: <b className="text-[#0B2A63]">{avgPending}%</b>
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* RINCIAN METER */}
-      {taskName === 'ALL' && (
-        <div className="mt-3">
-          <p className="mb-1.5 text-[9.5px] font-bold uppercase tracking-wide text-slate-400">
-            {programId === 'ALL' ? 'Meter per program (klik untuk memfilter)' : 'Meter per task list (klik untuk memfilter)'}
-          </p>
-          <div className="grid max-h-[210px] grid-cols-1 gap-1.5 overflow-y-auto pr-1 lg:grid-cols-2">
-            {breakdown.map(({ key, ...item }) => (
-              <MeterRow key={key} {...item} />
-            ))}
-          </div>
-        </div>
-      )}
-      {taskName !== 'ALL' && (
-        <button
-          type="button"
-          onClick={() => onTaskChange('ALL')}
-          className="mt-2 text-[10px] font-bold text-blue-700 hover:underline"
-        >
-          ← Kembali ke semua task list
-        </button>
-      )}
-
-      <div className="mt-3 max-h-[360px] overflow-auto">
+      <div className="mt-3 max-h-[420px] overflow-auto">
         <table className="w-full min-w-[560px] text-left">
           <thead className="sticky top-0 bg-white">
             <tr className="border-b border-slate-100 text-[9px] font-bold uppercase tracking-wide text-slate-400">
@@ -1935,7 +1785,7 @@ function StrategicActionsPanel({ report, programId = 'ALL' }: { report: OverallR
         {programName ? `Program: ${programName} · ` : ''}Dikelompokkan per kategori isu, diurutkan dari prioritas tertinggi.
       </p>
 
-      <div className="mt-3 max-h-[760px] space-y-2 overflow-y-auto pr-1">
+      <div className="mt-3 max-h-[480px] space-y-2 overflow-y-auto pr-1">
         {actions.map((action, index) => (
           <div key={action.programName + action.issue} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
             <div className="flex items-start justify-between gap-2">
