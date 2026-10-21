@@ -53,15 +53,15 @@ export function MetricCard({ id, title, value, icon: Icon, subtext, color }: Met
   const currentColors = colorMap[color] || colorMap.slate;
 
   return (
-    <div id={id} className={`p-5 rounded-2xl border transition-all duration-300 hover:shadow-md ${currentColors.bg}`}>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{title}</span>
-        <div className={`p-2.5 rounded-xl ${currentColors.iconBg}`}>
+    <div id={id} className={`p-5 rounded-[24px] border shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${currentColors.bg}`}>
+      <div className="flex items-center justify-between mb-4">
+        <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">{title}</span>
+        <div className={`p-2.5 rounded-2xl ${currentColors.iconBg}`}>
           <Icon className="w-5 h-5" />
         </div>
       </div>
       <div className="space-y-1">
-        <h4 className={`text-2xl font-bold font-mono tracking-tight ${currentColors.valColor}`}>{value}</h4>
+        <h4 className={`text-2xl font-bold tracking-tight ${currentColors.valColor}`}>{value}</h4>
         <p className="text-xs text-slate-500 dark:text-slate-400">{subtext}</p>
       </div>
     </div>

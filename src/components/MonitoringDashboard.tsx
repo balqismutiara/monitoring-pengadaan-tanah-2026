@@ -1,372 +1,817 @@
-import React from 'react';
-import { Program, DashboardStats, PICProgress } from '../types';
-import { 
-  calculateProgramMetrics, 
-  calculateTaskMetrics, 
-  isSubTaskOverdue, 
-  calculatePicProgress,
-  CURRENT_DATE_STR 
-} from '../utils';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell 
+import React, { useMemo, useState } from 'react';
+import {
+  LandAcquisitionMap,
+} from './LandAcquisitionMap';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock3,
+  FileCheck2,
+  Layers3,
+  MoreVertical,
+  Upload,
+} from 'lucide-react';
+import {
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
 } from 'recharts';
-import { AlertTriangle, Clock, Users, Percent, CheckCircle, Flame, Calendar, MapPin } from 'lucide-react';
+
+import { DashboardStats, Program } from '../types';
+import {
+  calculateDashboardStats,
+  calculateProgramMetrics,
+  CURRENT_DATE_STR,
+  isSubTaskOverdue,
+} from '../utils';
 
 interface MonitoringDashboardProps {
   programs: Program[];
   stats: DashboardStats;
 }
 
-export function MonitoringDashboard({ programs, stats }: MonitoringDashboardProps) {
-  // 1. Program progress data
-  const programProgressData = programs.map(p => {
-    const metrics = calculateProgramMetrics(p);
-    return {
-      name: p.name.length > 25 ? p.name.substring(0, 22) + '...' : p.name,
-      fullName: p.name,
-      Progress: metrics.progress,
-      Status: metrics.isAtRisk ? 'Beresiko' : 'Aman'
-    };
-  });
+type ProgramTask = Program['tasks'][number];
+type ProgramSubTask = ProgramTask['subTasks'][number];
 
-  // 2. Status Task count (Donut)
-  let doneCount = 0;
-  let wipCount = 0;
-  let delayedCount = 0;
+interface OverdueItem {
+  id: string;
+  programName: string;
+  taskName: string;
+  subTaskName: string;
+  pic: string;
+  dueDate: string;
+  delayDays: number;
+  notes?: string;
+}
 
-  programs.forEach(p => {
-    p.tasks.forEach(t => {
-      t.subTasks.forEach(sub => {
-        if (sub.status === 'DONE') doneCount++;
-        else if (sub.status === 'WIP') wipCount++;
-        else if (sub.status === 'DELAYED') delayedCount++;
-      });
-    });
-  });
+interface UpcomingTargetItem {
+  id: string;
+  programName: string;
+  taskName: string;
+  subTaskName: string;
+  dueDate: string;
+  daysLeft: number;
+  pic: string;
+}
 
-  const statusPieData = [
-    { name: 'Selesai (DONE)', value: doneCount, color: '#10B981' }, // emerald-500
-    { name: 'Sedang Proses (WIP)', value: wipCount, color: '#3B82F6' }, // blue-500
-    { name: 'Terlambat (DELAYED)', value: delayedCount, color: '#EF4444' } // rose-500
-  ].filter(d => d.value > 0);
+const STATUS_COLORS = {
+  DONE: '#16A34A',
+  WIP: '#2563EB',
+  NOT_STARTED: '#94A3B8',
+  DELAYED: '#EF4444',
+};
 
-  // 3. Overdue Tasks mapping
-  interface FlatOverdueItem {
-    id: string;
-    programName: string;
-    taskName: string;
-    subTaskName: string;
-    pic: string;
-    dueDate: string;
-    delayDays: number;
-    notes?: string;
+const clamp = (value: number, min = 0, max = 100) =>
+  Math.min(max, Math.max(min, value));
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+
+  if (Number.isNaN(date.getTime())) return dateString;
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(date);
+};
+
+const getProgramColor = (index: number) => {
+  const colors = ['#1467E8', '#18A85A', '#F59E0B'];
+  return colors[index % colors.length];
+};
+
+const getProgramTextColor = (index: number) => {
+  const colors = ['text-blue-700', 'text-emerald-700', 'text-amber-700'];
+  return colors[index % colors.length];
+};
+
+const getProgramBgColor = (index: number) => {
+  const colors = ['bg-blue-600', 'bg-emerald-600', 'bg-amber-500'];
+  return colors[index % colors.length];
+};
+
+const getSubTaskProgress = (subTask: ProgramSubTask) => {
+  const explicitProgress = (subTask as ProgramSubTask & { progress?: number }).progress;
+
+  if (typeof explicitProgress === 'number' && Number.isFinite(explicitProgress)) {
+    return clamp(Math.round(explicitProgress));
   }
 
-  const overdueList: FlatOverdueItem[] = [];
-  programs.forEach(p => {
-    p.tasks.forEach(t => {
-      t.subTasks.forEach(sub => {
-        if (isSubTaskOverdue(sub)) {
-          const dueDateTime = new Date(sub.dueDate).getTime();
-          const currTime = new Date(CURRENT_DATE_STR).getTime();
-          const diffDays = Math.max(1, Math.round((currTime - dueDateTime) / (1000 * 60 * 60 * 24)));
-          
-          overdueList.push({
-            id: sub.id,
-            programName: p.name,
-            taskName: t.name,
-            subTaskName: sub.name,
-            pic: sub.pic,
-            dueDate: sub.dueDate,
-            delayDays: diffDays,
-            notes: sub.notes
-          });
-        }
-      });
-    });
-  });
+  if (subTask.status === 'DONE') return 100;
+  if (subTask.status === 'WIP') return 50;
+  return 0;
+};
 
-  // Sort by delayDays descending
-  overdueList.sort((a, b) => b.delayDays - a.delayDays);
+export function MonitoringDashboard({
+  programs,
+}: MonitoringDashboardProps) {
+  const [selectedProgramId, setSelectedProgramId] = useState('ALL');
+  const [selectedTaskId, setSelectedTaskId] = useState('ALL');
 
-  // 4. Progress per PIC
-  const picProgressRaw = calculatePicProgress(programs);
-  const picChartData = picProgressRaw.map(pic => ({
-    name: pic.pic,
-    'Progres (%)': pic.progress,
-    'Total Tugas': pic.totalTasks,
-    'Selesai': pic.completedTasks
-  }));
+  const selectedProgram = useMemo(
+    () => programs.find((program) => program.id === selectedProgramId),
+    [programs, selectedProgramId],
+  );
 
-  // 5. Timeline of penyelesaian
-  // Gather all items to plot milestones on an interactive timeline
-  interface MilestoneItem {
-    id: string;
-    name: string;
-    programName: string;
-    dueDate: string;
-    status: 'DONE' | 'WIP' | 'DELAYED';
-    pic: string;
-    progress: number;
-  }
+  const taskOptions = selectedProgram?.tasks ?? [];
 
-  const milestones: MilestoneItem[] = [];
-  programs.forEach(p => {
-    p.tasks.forEach(t => {
-      t.subTasks.forEach(sub => {
-        milestones.push({
-          id: sub.id,
-          name: sub.name,
-          programName: p.name,
-          dueDate: sub.dueDate,
-          status: sub.status,
-          pic: sub.pic,
-          progress: sub.progress
+  const filteredPrograms = useMemo(() => {
+    if (selectedProgramId === 'ALL') return programs;
+
+    const matchingProgram = programs.find(
+      (program) => program.id === selectedProgramId,
+    );
+
+    if (!matchingProgram) return programs;
+
+    if (selectedTaskId === 'ALL') return [matchingProgram];
+
+    const matchingTask = matchingProgram.tasks.find(
+      (task) => task.id === selectedTaskId,
+    );
+
+    return [
+      {
+        ...matchingProgram,
+        tasks: matchingTask ? [matchingTask] : matchingProgram.tasks,
+      },
+    ];
+  }, [programs, selectedProgramId, selectedTaskId]);
+
+  const filteredStats = useMemo(
+    () => calculateDashboardStats(filteredPrograms),
+    [filteredPrograms],
+  );
+
+  const programProgressData = useMemo(
+    () =>
+      filteredPrograms.map((program) => {
+        const metrics = calculateProgramMetrics(program);
+
+        return {
+          id: program.id,
+          name: program.name,
+          progress: clamp(metrics.progress),
+          risk: metrics.isAtRisk,
+        };
+      }),
+    [filteredPrograms],
+  );
+
+  const statusData = useMemo(() => {
+    let done = 0;
+    let wip = 0;
+    let delayed = 0;
+    let notStarted = 0;
+
+    filteredPrograms.forEach((program) => {
+      program.tasks.forEach((task) => {
+        task.subTasks.forEach((subTask) => {
+          if (subTask.status === 'DONE') done += 1;
+          if (subTask.status === 'WIP') wip += 1;
+          if (subTask.status === 'DELAYED') delayed += 1;
+          if (subTask.status === 'NOT_STARTED') notStarted += 1;
         });
       });
     });
-  });
 
-  // Sort by dueDate ascending
-  milestones.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    const total = done + wip + delayed + notStarted;
+
+    return [
+      {
+        key: 'DONE',
+        name: 'Selesai',
+        value: done,
+        color: STATUS_COLORS.DONE,
+        percentage: total ? Math.round((done / total) * 100) : 0,
+      },
+      {
+        key: 'WIP',
+        name: 'Proses',
+        value: wip,
+        color: STATUS_COLORS.WIP,
+        percentage: total ? Math.round((wip / total) * 100) : 0,
+      },
+      {
+        key: 'NOT_STARTED',
+        name: 'Belum Mulai',
+        value: notStarted,
+        color: STATUS_COLORS.NOT_STARTED,
+        percentage: total ? Math.round((notStarted / total) * 100) : 0,
+      },
+      {
+        key: 'DELAYED',
+        name: 'Tertunda',
+        value: delayed,
+        color: STATUS_COLORS.DELAYED,
+        percentage: total ? Math.round((delayed / total) * 100) : 0,
+      },
+    ];
+  }, [filteredPrograms]);
+
+  const totalFilteredSubTasks = statusData.reduce(
+    (total, status) => total + status.value,
+    0,
+  );
+
+  const overdueList: OverdueItem[] = useMemo(() => {
+    const currentTime = new Date(CURRENT_DATE_STR).getTime();
+    const items: OverdueItem[] = [];
+
+    filteredPrograms.forEach((program) => {
+      program.tasks.forEach((task) => {
+        task.subTasks.forEach((subTask) => {
+          if (!isSubTaskOverdue(subTask)) return;
+
+          const targetTime = new Date(subTask.dueDate).getTime();
+          if (Number.isNaN(currentTime) || Number.isNaN(targetTime)) return;
+
+          items.push({
+            id: subTask.id,
+            programName: program.name,
+            taskName: task.name,
+            subTaskName: subTask.name,
+            pic: subTask.pic,
+            dueDate: subTask.dueDate,
+            delayDays: Math.max(
+              1,
+              Math.ceil((currentTime - targetTime) / (1000 * 60 * 60 * 24)),
+            ),
+            notes: subTask.notes,
+          });
+        });
+      });
+    });
+
+    return items.sort((a, b) => b.delayDays - a.delayDays);
+  }, [filteredPrograms]);
+
+  const riskPrograms = useMemo(
+    () =>
+      filteredPrograms
+        .map((program) => {
+          const metrics = calculateProgramMetrics(program);
+          const overdueCount = program.tasks.reduce(
+            (total, task) =>
+              total +
+              task.subTasks.filter((subTask) => isSubTaskOverdue(subTask)).length,
+            0,
+          );
+
+          return {
+            id: program.id,
+            name: program.name,
+            progress: clamp(metrics.progress),
+            overdueCount,
+            isAtRisk: metrics.isAtRisk,
+            target:
+              program.tasks
+                .flatMap((task) => task.subTasks)
+                .map((subTask) => subTask.dueDate)
+                .filter(Boolean)
+                .sort()[0] ?? '-',
+          };
+        })
+        .filter((program) => program.isAtRisk || program.overdueCount > 0)
+        .sort((a, b) => b.overdueCount - a.overdueCount),
+    [filteredPrograms],
+  );
+
+  const upcomingTargets: UpcomingTargetItem[] = useMemo(() => {
+    const currentTime = new Date(CURRENT_DATE_STR).getTime();
+    const items: UpcomingTargetItem[] = [];
+
+    if (Number.isNaN(currentTime)) return items;
+
+    filteredPrograms.forEach((program) => {
+      program.tasks.forEach((task) => {
+        task.subTasks.forEach((subTask) => {
+          if (subTask.status === 'DONE') return;
+
+          const dueTime = new Date(subTask.dueDate).getTime();
+          if (Number.isNaN(dueTime) || dueTime < currentTime) return;
+
+          const daysLeft = Math.ceil(
+            (dueTime - currentTime) / (1000 * 60 * 60 * 24),
+          );
+
+          items.push({
+            id: subTask.id,
+            programName: program.name,
+            taskName: task.name,
+            subTaskName: subTask.name,
+            dueDate: subTask.dueDate,
+            daysLeft,
+            pic: subTask.pic,
+          });
+        });
+      });
+    });
+
+    return items
+      .sort(
+        (a, b) =>
+          new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(),
+      )
+      .slice(0, 4);
+  }, [filteredPrograms]);
+
+  const recentActivities = useMemo(() => {
+    const items: Array<{
+      id: string;
+      title: string;
+      subtitle: string;
+      user: string;
+      icon: 'done' | 'process' | 'delay';
+    }> = [];
+
+    filteredPrograms.forEach((program) => {
+      program.tasks.forEach((task) => {
+        task.subTasks.forEach((subTask) => {
+          items.push({
+            id: `${program.id}-${task.id}-${subTask.id}`,
+            title:
+              subTask.status === 'DONE'
+                ? 'Status pekerjaan diselesaikan'
+                : subTask.status === 'DELAYED'
+                  ? 'Target pekerjaan memerlukan perhatian'
+                  : 'Status pelaksanaan diperbarui',
+            subtitle: `${task.name} · ${program.name}`,
+            user: subTask.pic,
+            icon:
+              subTask.status === 'DONE'
+                ? 'done'
+                : subTask.status === 'DELAYED'
+                  ? 'delay'
+                  : 'process',
+          });
+        });
+      });
+    });
+
+    return items.slice(0, 4);
+  }, [filteredPrograms]);
+
+  const selectedProgramName =
+    selectedProgramId === 'ALL'
+      ? 'Semua Program'
+      : selectedProgram?.name ?? 'Semua Program';
+
+  const selectedTaskName =
+    selectedTaskId === 'ALL'
+      ? 'Semua Tahapan'
+      : taskOptions.find((task) => task.id === selectedTaskId)?.name ??
+        'Semua Tahapan';
 
   return (
-    <div id="dashboard-monitoring" className="space-y-6">
-      
-      {/* Visualisasi Grid Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Row 1, Chart 1: Progres Tiap Program Kerja */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Progres Tiap Program Kerja</h3>
-            <p className="text-xs text-slate-500 mb-4">Grafik tingkat realisasi keseluruhan dari setiap klaster program pengadaan lahan utama.</p>
-          </div>
-          <div className="h-[280px] w-full mt-2">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={programProgressData}
-                margin={{ top: 10, right: 10, left: -20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                <XAxis dataKey="name" stroke="#94A3B8" fontSize={11} tickLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={11} tickLine={false} domain={[0, 100]} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1E293B', borderRadius: '12px', padding: '10px', color: '#FFF' }}
-                  labelStyle={{ fontWeight: 'bold' }}
-                />
-                <Bar dataKey="Progress" fill="#3B82F6" radius={[6, 6, 0, 0]} barSize={40}>
-                  {programProgressData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.Status === 'Beresiko' ? '#F59E0B' : '#10B981'} 
-                    />
-                  ))}
-                </Bar>
-                <Legend 
-                  verticalAlign="top" 
-                  height={36} 
-                  iconType="circle"
-                  formatter={(value) => <span className="text-xs text-slate-500">Persentase Target Selesai</span>}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex gap-4 justify-center text-xs mt-3 pt-2 text-slate-500 border-t border-slate-100 dark:border-slate-800/60">
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#10B981]"></span> Aman (Progres Bagus)</span>
-            <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-[#F59E0B]"></span> Beresiko (Ada Keterlambatan)</span>
-          </div>
-        </div>
+    <div id="dashboard-monitoring" className="space-y-4 pb-6">
+      {/* BARIS UTAMA: PETA + PROGRESS PROGRAM + STATUS */}
+      <section className="grid grid-cols-1 gap-4 2xl:grid-cols-12">
+        {/* PETA */}
+        <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-7">
+          <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <h2 className="text-[13px] font-extrabold text-[#0B2A63]">
+                Peta Sebaran Pengadaan Tanah
+              </h2>
+              <p className="mt-1 text-[9px] text-slate-400">
+                Visualisasi sebaran lokasi berdasarkan program pengadaan tanah.
+              </p>
+            </div>
 
-        {/* Row 1, Chart 2: Status Pekerjaan (Sub-Task Status Pie Chart) */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Distribusi Status Sub-Task</h3>
-            <p className="text-xs text-slate-500 mb-4">Rasio pembagian status dari total seluruh sub-task pengadaan tanah yang sedang dimonitor.</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative">
+                <select
+                  value={selectedProgramId}
+                  onChange={(event) => {
+                    setSelectedProgramId(event.target.value);
+                    setSelectedTaskId('ALL');
+                  }}
+                  className="h-9 min-w-[132px] appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-8 text-[9px] font-semibold text-slate-600 outline-none focus:border-blue-500"
+                >
+                  <option value="ALL">Semua Program</option>
+                  {programs.map((program) => (
+                    <option key={program.id} value={program.id}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              </label>
+
+              <label className="relative">
+                <select
+                  value={selectedTaskId}
+                  onChange={(event) => setSelectedTaskId(event.target.value)}
+                  disabled={selectedProgramId === 'ALL'}
+                  className="h-9 min-w-[132px] appearance-none rounded-lg border border-slate-200 bg-white px-3 pr-8 text-[9px] font-semibold text-slate-600 outline-none focus:border-blue-500 disabled:bg-slate-50 disabled:text-slate-400"
+                >
+                  <option value="ALL">
+                    {selectedProgramId === 'ALL'
+                      ? 'Semua Tahapan'
+                      : 'Semua Tahapan'}
+                  </option>
+                  {taskOptions.map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {task.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              </label>
+
+              <div
+                className="flex h-9 cursor-default items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[9px] font-semibold text-slate-600"
+                title="Pilihan Peta Jalan / Satelit tersedia pada kontrol layer di dalam peta"
+              >
+                <Layers3 className="h-3.5 w-3.5 text-blue-600" />
+                Layer
+              </div>
+            </div>
           </div>
-          <div className="h-[280px] w-full flex items-center justify-center">
-            <div className="w-2/3 h-full">
+
+          {/* LIVE INTERACTIVE MAP */}
+          <LandAcquisitionMap
+            selectedProgramName={selectedProgramName}
+          />
+
+          <div className="grid grid-cols-1 gap-2 p-3 md:grid-cols-3">
+            {programProgressData.slice(0, 3).map((program, index) => (
+              <div
+                key={program.id}
+                className="rounded-xl border border-slate-100 bg-slate-50/70 p-3"
+              >
+                <div className="flex items-start gap-2">
+                  <span
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white ${getProgramBgColor(index)}`}
+                  >
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 min-h-7 text-[9px] font-bold leading-3.5 text-slate-700">
+                      {program.name}
+                    </p>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[8px] text-slate-400">Progress</span>
+                      <strong className="text-[10px] text-[#0B2A63]">
+                        {program.progress}%
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        {/* PROGRESS TIAP PROGRAM */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm 2xl:col-span-2">
+          <h2 className="text-[13px] font-extrabold text-[#0B2A63]">
+            Progress Tiap Program
+          </h2>
+          <p className="mt-1 text-[9px] leading-4 text-slate-400">
+            Rata-rata progress seluruh sub-task per program.
+          </p>
+
+          <div className="mt-5 space-y-5">
+            {programProgressData.slice(0, 5).map((program, index) => (
+              <div key={program.id}>
+                <div className="flex items-start gap-2">
+                  <span
+                    className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[8px] font-extrabold text-white ${getProgramBgColor(index)}`}
+                  >
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-end justify-between gap-2">
+                      <p className="line-clamp-2 text-[9.5px] font-bold leading-4 text-[#0B2A63]">
+                        {program.name}
+                      </p>
+                      <strong className={`shrink-0 text-[16px] ${getProgramTextColor(index)}`}>
+                        {program.progress}%
+                      </strong>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${program.progress}%`,
+                          backgroundColor: getProgramColor(index),
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button className="mx-auto mt-6 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[8.5px] font-semibold text-blue-600">
+            Lihat Detail Program
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </article>
+
+        {/* STATUS SUBTASK */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm 2xl:col-span-3">
+          <h2 className="text-[13px] font-extrabold text-[#0B2A63]">
+            Distribusi Status Sub-Task
+          </h2>
+          <p className="mt-1 text-[9px] text-slate-400">
+            Total {totalFilteredSubTasks} Sub-Task
+          </p>
+
+          <div className="mt-5 grid grid-cols-[1.05fr_.95fr] items-center gap-3">
+            <div className="relative h-[190px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={statusPieData}
+                    data={statusData}
+                    dataKey="value"
                     cx="50%"
                     cy="50%"
-                    innerRadius={65}
-                    outerRadius={95}
-                    paddingAngle={3}
-                    dataKey="value"
+                    innerRadius={52}
+                    outerRadius={72}
+                    paddingAngle={2}
+                    stroke="none"
                   >
-                    {statusPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {statusData.map((status) => (
+                      <Cell key={status.key} fill={status.color} />
                     ))}
                   </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1E293B', borderRadius: '12px', padding: '10px', color: '#FFF' }}
+                  <Tooltip
+                    formatter={(value) => [
+                       `${Array.isArray(value) ? value.join(', ') : value ?? 0} sub-task`,
+                       'Jumlah',
+                    ]}
+                
                   />
                 </PieChart>
               </ResponsiveContainer>
+
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <strong className="text-[25px] font-extrabold text-[#0B2A63]">
+                  {totalFilteredSubTasks}
+                </strong>
+                <span className="text-[8px] font-semibold text-slate-400">
+                  Sub-Task
+                </span>
+              </div>
             </div>
-            {/* Custom Legend to side */}
-            <div className="w-1/3 flex flex-col justify-center gap-3">
-              {statusPieData.map((entry, index) => (
-                <div key={index} className="space-y-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-                    <span className="text-xs font-bold font-mono text-slate-700 dark:text-slate-300">{entry.value}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 font-medium pl-5">{entry.name}</p>
+
+            <div className="space-y-3">
+              {statusData.map((status) => (
+                <div key={status.key} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-[8.5px] font-semibold text-slate-600">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: status.color }}
+                    />
+                    {status.name}
+                  </span>
+                  <span className="text-[8px] text-slate-500">
+                    {status.value} ({status.percentage}%)
+                  </span>
                 </div>
               ))}
             </div>
           </div>
-          <div className="text-center text-xs text-slate-400 italic pt-2 border-t border-slate-100 dark:border-slate-800/60">
-            Total Sub-Task Kerja: {stats.totalSubTasks} item yang didata
-          </div>
-        </div>
 
-      </div>
+          <button className="mx-auto mt-5 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[8.5px] font-semibold text-blue-600">
+            Lihat Detail Sub-Task
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </article>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* BARIS BAWAH */}
+      <section className="grid grid-cols-1 gap-4 2xl:grid-cols-12">
+        {/* PROGRAM PERLU PERHATIAN */}
+        <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm 2xl:col-span-5">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h2 className="text-[13px] font-extrabold text-[#0B2A63]">
+              Program Memerlukan Perhatian
+            </h2>
+            <p className="mt-1 text-[9px] text-slate-400">
+              Program dengan progress rendah atau memiliki pekerjaan overdue.
+            </p>
+          </div>
 
-        {/* Row 2, Chart 3: Progres per PIC (Horizontal Bar Chart) */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between lg:col-span-2">
-          <div>
-            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-1">Realisasi & Efisiensi Progres per PIC</h3>
-            <p className="text-xs text-slate-500 mb-4">Rata-rata penyelesaian sub-task berdasarkan individu pemegang tanggung jawab utama.</p>
-          </div>
-          <div className="h-[290px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                layout="vertical"
-                data={picChartData}
-                margin={{ top: 5, right: 10, left: 30, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#F1F5F9" />
-                <XAxis type="number" stroke="#94A3B8" fontSize={11} tickLine={false} domain={[0, 100]} />
-                <YAxis dataKey="name" type="category" stroke="#475569" fontSize={11} tickLine={false} width={100} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1E293B', borderRadius: '12px', padding: '10px', color: '#FFF' }}
-                />
-                <Bar dataKey="Progres (%)" fill="#6366F1" radius={[0, 6, 6, 0]} barSize={18} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="text-xs text-slate-400 text-center pt-2 border-t border-slate-100 dark:border-slate-800/60">
-            *PIC dengan progres tinggi menunjukkan kapabilitas operasional lahan yang optimal.
-          </div>
-        </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[630px]">
+              <thead className="bg-slate-50">
+                <tr className="text-left text-[7.5px] font-bold uppercase tracking-wide text-slate-400">
+                  <th className="px-3 py-2.5">Program</th>
+                  <th className="px-3 py-2.5">Progress</th>
+                  <th className="px-3 py-2.5">Overdue</th>
+                  <th className="px-3 py-2.5">Target</th>
+                  <th className="px-3 py-2.5">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {(riskPrograms.length ? riskPrograms : programProgressData).slice(0, 3).map((program, index) => {
+                  const riskProgram = 'overdueCount' in program ? program : null;
+                  const progress = program.progress;
+                  const overdueCount = riskProgram?.overdueCount ?? 0;
+                  const target = riskProgram?.target ?? '-';
 
-        {/* Row 2, List: Task Terlambat (Overdue Tasks) */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="mb-3">
-            <h3 className="text-lg font-bold text-red-600 dark:text-rose-400 mb-1 flex items-center gap-2">
-              <Clock className="w-5 h-5" />
-              Overdue & Terhambat Lahan ({overdueList.length})
-            </h3>
-            <p className="text-xs text-slate-500">Daftar item pekerjaan yang telah melewati target tenggat waktu penyelesaian.</p>
+                  return (
+                    <tr key={program.id}>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-extrabold text-white ${getProgramBgColor(index)}`}>
+                            {index + 1}
+                          </span>
+                          <span className="line-clamp-2 text-[8.5px] font-bold leading-3.5 text-[#0B2A63]">
+                            {program.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <strong className="text-[8.5px] text-[#0B2A63]">
+                            {progress}%
+                          </strong>
+                          <div className="h-1.5 w-12 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-blue-600"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={overdueCount ? 'text-[8.5px] font-bold text-red-500' : 'text-[8.5px] text-slate-400'}>
+                          {overdueCount}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-[8px] text-slate-500">
+                        {target === '-' ? '-' : formatDate(target)}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1">
+                          <button className="rounded-md border border-slate-200 px-2 py-1 text-[7.5px] font-semibold text-blue-600">
+                            Lihat Detail
+                          </button>
+                          <button className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 text-slate-400">
+                            <MoreVertical className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <div className="flex-1 overflow-y-auto pr-1 max-h-[280px] space-y-3 scrollbar-thin">
-            {overdueList.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center py-12 text-slate-400">
-                <CheckCircle className="w-10 h-10 text-emerald-500 mb-2" />
-                <p className="text-xs font-semibold text-emerald-600">Luar Biasa!</p>
-                <p className="text-[11px] text-slate-400">Tidak ada sub-task yang terlambat.</p>
+
+          <div className="border-t border-slate-100 p-3 text-center">
+            <button className="inline-flex items-center gap-1.5 text-[8.5px] font-semibold text-blue-600">
+              Lihat Semua Program
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </article>
+
+        {/* AKTIVITAS TERBARU */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm 2xl:col-span-4">
+          <h2 className="text-[13px] font-extrabold text-[#0B2A63]">
+            Aktivitas Terbaru
+          </h2>
+          <p className="mt-1 text-[9px] text-slate-400">
+            Ringkasan perubahan status pada data aktif.
+          </p>
+
+          <div className="mt-3 divide-y divide-slate-100">
+            {recentActivities.length === 0 ? (
+              <div className="flex min-h-[170px] items-center justify-center text-[9px] text-slate-400">
+                Belum ada aktivitas pada data aktif.
               </div>
             ) : (
-              overdueList.map(item => (
-                <div key={item.id} className="p-3 bg-rose-50/50 dark:bg-rose-950/20 rounded-xl border border-rose-100 dark:border-rose-900/30 space-y-1.5 transition-all hover:border-rose-300">
-                  <div className="flex justify-between items-start gap-1">
-                    <span className="font-semibold text-xs text-slate-900 dark:text-slate-100 line-clamp-2">{item.subTaskName}</span>
-                    <span className="shrink-0 bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded font-mono">
-                      +{item.delayDays} Hari
+              recentActivities.map((activity) => {
+                const icon =
+                  activity.icon === 'done' ? (
+                    <Upload className="h-3.5 w-3.5" />
+                  ) : activity.icon === 'delay' ? (
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                  ) : (
+                    <FileCheck2 className="h-3.5 w-3.5" />
+                  );
+
+                const iconClass =
+                  activity.icon === 'done'
+                    ? 'bg-emerald-50 text-emerald-600'
+                    : activity.icon === 'delay'
+                      ? 'bg-amber-50 text-amber-600'
+                      : 'bg-blue-50 text-blue-600';
+
+                return (
+                  <div
+                    key={activity.id}
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-3"
+                  >
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconClass}`}>
+                      {icon}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-[8.8px] font-bold text-[#0B2A63]">
+                        {activity.title}
+                      </p>
+                      <p className="mt-0.5 truncate text-[7.8px] text-slate-400">
+                        {activity.subtitle}
+                      </p>
+                    </div>
+                    <span className="max-w-[72px] truncate text-right text-[7.5px] text-slate-500">
+                      {activity.user}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-500 space-y-0.5 font-medium">
-                    <p className="text-slate-400 truncate">Prog: {item.programName}</p>
-                    <p className="text-indigo-600 dark:text-indigo-400 flex items-center gap-1">
-                      <Users className="w-3 h-3 inline" /> PIC: {item.pic}
-                    </p>
-                    <p className="text-slate-400">Target: {item.dueDate}</p>
-                  </div>
-                  {item.notes && (
-                    <p className="text-[10px] bg-white/60 dark:bg-slate-900/60 p-1.5 rounded text-amber-800 dark:text-amber-400 border border-amber-100/30 leading-normal">
-                      🚧 {item.notes}
-                    </p>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
-          <p className="text-[11.5px] text-center text-slate-400 italic pt-2 mt-2 border-t border-slate-100 dark:border-slate-800/60">
-            Dihitung dari basis target tanggal valid: {CURRENT_DATE_STR}
+
+          <button className="mx-auto mt-3 flex items-center gap-1.5 text-[8.5px] font-semibold text-blue-600">
+            Lihat Semua Aktivitas
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </article>
+
+        {/* UPCOMING TARGET */}
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm 2xl:col-span-3">
+          <h2 className="text-[13px] font-extrabold text-[#0B2A63]">
+            Upcoming Target
+          </h2>
+          <p className="mt-1 text-[9px] text-slate-400">
+            Target yang akan jatuh tempo berikutnya.
           </p>
-        </div>
 
-      </div>
+          <div className="mt-3 divide-y divide-slate-100">
+            {upcomingTargets.length === 0 ? (
+              <div className="flex min-h-[170px] items-center justify-center text-center text-[9px] text-slate-400">
+                Tidak ada target mendatang.
+              </div>
+            ) : (
+              upcomingTargets.map((item) => {
+                const date = new Date(item.dueDate);
 
-      {/* Row 3: Timeline Penyelesaian Pengadaan Lahan (Roadmap Timeline) */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
-        <div className="mb-4">
-          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-indigo-500" />
-            Timeline Alur & Milestones 2026
-          </h3>
-          <p className="text-xs text-slate-500">Timeline kronologis penyelesaian setiap sub-task berdasarkan tanggal jatuh tempo target tahun 2026.</p>
-        </div>
-
-        {/* Dynamic Horizontal Chronology Line */}
-        <div className="overflow-x-auto pb-4 scrollbar-thin">
-          <div className="min-w-[1000px] relative px-4 pt-4">
-            {/* The line */}
-            <div className="absolute top-[32px] left-0 right-0 h-1 bg-slate-200 dark:bg-slate-800 rounded" />
-
-            <div className="flex justify-between items-start">
-              {milestones.filter((_, idx) => idx % 2 === 0).slice(0, 7).map((milestone) => {
-                const isOver = milestone.dueDate < CURRENT_DATE_STR && milestone.status !== 'DONE';
                 return (
-                  <div key={milestone.id} className="relative flex flex-col items-center w-36 text-center group">
-                    {/* Circle Indicator */}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-4 z-10 transition-all duration-300 ${
-                      milestone.status === 'DONE' 
-                        ? 'bg-emerald-500 border-white dark:border-slate-900 text-white' 
-                        : isOver 
-                        ? 'bg-red-500 border-white dark:border-slate-900 text-white animate-pulse' 
-                        : 'bg-blue-500 border-white dark:border-slate-900 text-white'
-                    }`}>
-                      <span className="text-[9px] font-mono leading-none font-bold">
-                        {milestone.status === 'DONE' ? '✓' : isOver ? '!' : '⏳'}
+                  <div
+                    key={`${item.id}-${item.dueDate}`}
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-2 py-2.5"
+                  >
+                    <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-blue-50">
+                      <span className="text-[12px] font-extrabold text-blue-700">
+                        {date.getDate()}
+                      </span>
+                      <span className="text-[7px] font-bold uppercase text-blue-500">
+                        {new Intl.DateTimeFormat('id-ID', {
+                          month: 'short',
+                        }).format(date)}
                       </span>
                     </div>
 
-                    {/* Date label */}
-                    <span className="mt-2 font-mono text-[10px] font-semibold text-slate-500">
-                      {milestone.dueDate}
-                    </span>
-
-                    {/* Content Box */}
-                    <div className="mt-1 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-100 dark:border-slate-800 text-left w-full space-y-1">
-                      <p className="text-[10px] font-bold text-slate-800 dark:text-slate-100 line-clamp-2" title={milestone.name}>
-                        {milestone.name}
+                    <div className="min-w-0">
+                      <p className="truncate text-[8.5px] font-bold text-[#0B2A63]">
+                        {item.subTaskName}
                       </p>
-                      <p className="text-[9px] text-slate-400 truncate">{milestone.programName.split(" ").slice(2).join(" ")}</p>
-                      <div className="flex justify-between items-center text-[8.5px] pt-1 border-t border-slate-200/50 dark:border-slate-800">
-                        <span className="text-slate-500 truncate max-w-[50px]">{milestone.pic.split(" ")[0]}</span>
-                        <span className="font-semibold text-emerald-600">{milestone.progress}%</span>
-                      </div>
+                      <p className="mt-0.5 truncate text-[7.5px] text-slate-400">
+                        {item.programName}
+                      </p>
                     </div>
+
+                    <span className="rounded-md border border-red-100 bg-red-50 px-2 py-1 text-[7px] font-semibold text-red-500">
+                      {item.daysLeft === 0 ? 'Hari ini' : `Sisa ${item.daysLeft} hari`}
+                    </span>
                   </div>
                 );
-              })}
-            </div>
+              })
+            )}
           </div>
-        </div>
-        <div className="text-[11px] text-slate-500 leading-6 mt-3 flex items-center gap-1 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl">
-          💡 <span>**Informasi Progres**: Garis kronologis di atas menampilkan rencana sebaran penuntasan. Status lingkaran merah (!) merupakan indikasi darurat overdue, lingkaran hijau (✓) merepresentasikan pencapaian sasaran pengadaan yang berhasil, dan lingkaran biru adalah proses berlanjut.</span>
-        </div>
-      </div>
 
+          <button className="mx-auto mt-3 flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-[8.5px] font-semibold text-blue-600">
+            Lihat Kalender
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </article>
+      </section>
+
+      {/* RINGKASAN FILTER */}
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-4 py-2 text-[8px] text-slate-400">
+        <span>
+          Data aktif: <strong className="text-slate-600">{selectedProgramName}</strong>
+          {selectedTaskId !== 'ALL' && (
+            <> · <strong className="text-slate-600">{selectedTaskName}</strong></>
+          )}
+        </span>
+        <span>
+          {filteredStats.totalPrograms} program · {filteredStats.totalTasks} task · {filteredStats.totalSubTasks} sub-task
+        </span>
+      </div>
     </div>
   );
 }

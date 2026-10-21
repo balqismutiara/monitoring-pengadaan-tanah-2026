@@ -12,6 +12,16 @@ export function ExecutiveSummary({ programs, stats }: ExecutiveSummaryProps) {
   // Analytical processing for Dynamic Insights
   const totalSubTasksCount = stats.totalSubTasks;
   const overdueCount = stats.overdueTasksCount;
+
+  const stageSummary = programs.reduce<Record<string, number>>((acc, program) => {
+    program.tasks.forEach(task => {
+      const stage = task.stage ?? 'C. Pelaksanaan';
+      acc[stage] = (acc[stage] ?? 0) + task.subTasks.length;
+    });
+    return acc;
+  }, {});
+
+  const dominantStage = Object.entries(stageSummary).sort((a, b) => b[1] - a[1])[0];
   
   // Find which specific subtasks are delaying the most
   const criticalDelays: string[] = [];
@@ -68,15 +78,15 @@ export function ExecutiveSummary({ programs, stats }: ExecutiveSummaryProps) {
           <ul className="space-y-3 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
             <li className="flex gap-2">
               <span className="text-emerald-500 font-bold">✓</span>
-              <span><strong>Mempawah PN Clear:</strong> Pengambilan Uang Ganti Rugi (UGR) ahli waris untuk Pengadaan Tanah Terminal Kijing di PN Mempawah telah lunas diselesaikan 100%.</span>
+              <span><strong>Pusat Fokus Saat Ini:</strong> Tahapan <strong>{dominantStage?.[0] ?? 'C. Pelaksanaan'}</strong> menjadi area kerja terpadat dengan <strong>{dominantStage?.[1] ?? 0}</strong> sub-task terdata.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-emerald-500 font-bold">✓</span>
-              <span><strong>Kemitraan Kejati:</strong> Pendampingan hukum oleh Kejati Kalbar telah terjalin dinamis, mendukung pengosongan aset makam secara aman dan legal.</span>
+              <span><strong>Dokumen Pendukung:</strong> Beberapa sub-task sudah memiliki lampiran dokumen pendukung sehingga memudahkan verifikasi dan audit.</span>
             </li>
             <li className="flex gap-2">
               <span className="text-emerald-500 font-bold">✓</span>
-              <span><strong>Tukar Guling BMN:</strong> Pembuatan Dokumen Perencanaan Pengadaan Tanah (DPPT) pengganti TNI AL (Tj Pinang, Pontianak, Merauke) dan Penilaian telah rampung disepakati.</span>
+              <span><strong>Kelompok Prioritas:</strong> Program regional/cabang dan relokasi aset tetap menjadi fokus aktif karena cakupan pekerjaan dan dokumen penunjang yang besar.</span>
             </li>
           </ul>
         </div>

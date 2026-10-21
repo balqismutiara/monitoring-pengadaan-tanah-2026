@@ -128,7 +128,7 @@ export function BriefPresentation({ stats }: BriefPresentationProps) {
     <div id="brief-presentation" className="grid grid-cols-1 lg:grid-cols-4 gap-6">
       
       {/* Slide Index / Selection Panel */}
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+      <div className="bg-white dark:bg-slate-900 rounded-[28px] p-5 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between">
         <div className="space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
             <Presentation className="w-5 h-5 text-indigo-600" />
@@ -167,7 +167,7 @@ export function BriefPresentation({ stats }: BriefPresentationProps) {
 
       {/* Main Slide Screen Container */}
       <div className="lg:col-span-3">
-        <div className={`rounded-3xl bg-gradient-to-br ${slidesData[currentSlide].color} p-8 text-white shadow-xl min-h-[420px] flex flex-col justify-between relative overflow-hidden transition-all duration-500 transform`}>
+        <div className={`rounded-[32px] bg-gradient-to-br ${slidesData[currentSlide].color} p-8 text-white shadow-[0_18px_45px_rgba(15,23,42,0.20)] min-h-[420px] flex flex-col justify-between relative overflow-hidden transition-all duration-500 transform`}>
           
           {/* Subtle design circles in background */}
           <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-xl pointer-events-none" />

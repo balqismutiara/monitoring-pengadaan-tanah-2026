@@ -1,1 +1,970 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
+
+/* =========================================================
+   ROOT / PELINDO THEME
+========================================================= */
+
+:root {
+  font-family: "Poppins", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  color: #0f172a;
+  background-color: #f5f8fc;
+
+  /* Sidebar */
+  --color-sidebar: #003b73;
+  --color-sidebar-dark: #002b5b;
+
+  /* Active menu - formal blue */
+  --color-menu-active: #1f5fae;
+  --color-menu-active-hover: #184f94;
+
+  /* App background */
+  --color-bg-app: #f5f8fc;
+  --color-bg-soft: #edf6fd;
+
+  /* Primary */
+  --color-btn: #0072bc;
+  --color-btn-hover: #005c99;
+
+  /* Text */
+  --color-text-primary: #102448;
+  --color-text-secondary: #64748b;
+  --color-text-muted: #7b8ca4;
+
+  /* Border */
+  --color-border: #dce6ef;
+  --color-border-soft: #e8edf4;
+
+  /* Monitoring UI */
+  --monitoring-primary: #1267c7;
+  --monitoring-primary-dark: #0c4b91;
+  --monitoring-card: #ffffff;
+  --monitoring-header: #fbfcfe;
+  --monitoring-row-hover: #fafcff;
+
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+}
+
+/* =========================================================
+   GLOBAL
+========================================================= */
+
+html,
+body,
+#root {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100%;
+  font-family: "Poppins", sans-serif;
+}
+
+html {
+  background: var(--color-bg-app);
+}
+
+body {
+  min-height: 100vh;
+  background: var(--color-bg-app);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font-family: "Poppins", sans-serif;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+input,
+select,
+textarea {
+  color: var(--color-text-primary);
+}
+
+::selection {
+  background: rgba(18, 103, 199, 0.16);
+  color: #102448;
+}
+
+/* =========================================================
+   APP THEME
+========================================================= */
+
+.bg-app {
+  background-color: var(--color-bg-app);
+}
+
+.bg-sidebar {
+  background:
+    linear-gradient(
+      180deg,
+      var(--color-sidebar) 0%,
+      var(--color-sidebar-dark) 100%
+    );
+}
+
+.text-primary {
+  color: var(--color-text-primary);
+}
+
+.text-secondary {
+  color: var(--color-text-secondary);
+}
+
+/* =========================================================
+   SIDEBAR MENU
+========================================================= */
+
+.menu-active {
+  background:
+    linear-gradient(
+      90deg,
+      var(--color-menu-active) 0%,
+      #246bb7 100%
+    );
+
+  font-weight: 600;
+  color: #ffffff;
+
+  box-shadow:
+    inset 4px 0 0 #ffffff;
+}
+
+.menu-active:hover {
+  background:
+    linear-gradient(
+      90deg,
+      var(--color-menu-active-hover) 0%,
+      var(--color-menu-active) 100%
+    );
+}
+
+.menu-active .icon {
+  color: #ffffff;
+}
+
+.text-menu-active {
+  color: #ffffff;
+}
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.text-btn {
+  color: var(--color-btn);
+}
+
+.bg-btn {
+  background-color: var(--color-btn);
+}
+
+.btn-blue {
+  background:
+    linear-gradient(
+      135deg,
+      #003b73 0%,
+      var(--color-btn) 100%
+    );
+  color: #ffffff;
+
+  border: none;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.btn-blue:hover {
+  background:
+    linear-gradient(
+      135deg,
+      #002f5d 0%,
+      var(--color-btn-hover) 100%
+    );
+}
+
+.btn-blue:active {
+  transform: translateY(1px);
+}
+
+/* =========================================================
+   CHAT
+========================================================= */
+
+.chat-user {
+  background:
+    linear-gradient(
+      135deg,
+      #003b73 0%,
+      var(--color-btn) 100%
+    );
+  color: #ffffff;
+}
+
+/* =========================================================
+   INTERACTION
+========================================================= */
+
+.collapse-btn:hover {
+  color: var(--color-sidebar);
+}
+
+.hover-text-sidebar:hover {
+  color: var(--color-sidebar);
+}
+
+.focus-border-btn:focus {
+  border-color: var(--color-btn) !important;
+  box-shadow:
+    0 0 0 4px rgba(0, 114, 188, 0.08);
+}
+
+/* =========================================================
+   OPTIONAL HELPER CLASSES
+========================================================= */
+
+.border-app {
+  border-color: var(--color-border);
+}
+
+.bg-soft {
+  background-color: var(--color-bg-soft);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+/* =========================================================
+   MONITORING PAGE
+========================================================= */
+
+.monitoring-page {
+  min-height: 100vh;
+  background: #f7f9fc;
+  color: #102448;
+}
+
+/* Main cards */
+
+.monitoring-card {
+  background: var(--monitoring-card);
+  border: 1px solid #e0e7f0;
+  border-radius: 18px;
+
+  box-shadow:
+    0 4px 18px rgba(15, 35, 68, 0.035);
+}
+
+/* Titles */
+
+.monitoring-title {
+  color: #102448;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.monitoring-section-title {
+  color: #13294b;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.monitoring-subtitle {
+  color: #667895;
+}
+
+/* =========================================================
+   KPI CARDS
+========================================================= */
+
+.monitoring-metric-card {
+  background: #ffffff;
+  border: 1px solid #e0e7f0;
+  border-radius: 18px;
+
+  min-height: 118px;
+
+  box-shadow:
+    0 4px 16px rgba(20, 47, 82, 0.03);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.monitoring-metric-card:hover {
+  transform: translateY(-1px);
+
+  border-color: #d6e1ed;
+
+  box-shadow:
+    0 8px 24px rgba(20, 47, 82, 0.05);
+}
+
+.monitoring-metric-label {
+  color: #263c5d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.monitoring-metric-value {
+  color: #102448;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+
+.monitoring-metric-description {
+  color: #7487a2;
+  font-size: 10px;
+}
+
+/* =========================================================
+   FILTER AREA
+========================================================= */
+
+.monitoring-filter-container {
+  background: #ffffff;
+
+  border: 1px solid #e1e8f2;
+  border-radius: 18px;
+
+  box-shadow:
+    0 4px 18px rgba(15, 35, 68, 0.035);
+}
+
+.monitoring-label {
+  display: block;
+
+  margin-bottom: 8px;
+
+  color: #273b5d;
+
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Inputs */
+
+.monitoring-input,
+.monitoring-select {
+  width: 100%;
+  height: 44px;
+
+  background: #ffffff;
+
+  border:
+    1px solid #dce4ef;
+
+  border-radius: 12px;
+
+  color: #233b62;
+
+  font-size: 12px;
+  font-weight: 500;
+
+  outline: none;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.monitoring-input {
+  padding:
+    0 14px;
+}
+
+.monitoring-select {
+  padding:
+    0 38px 0 14px;
+}
+
+.monitoring-input::placeholder {
+  color: #9aa9bc;
+  font-weight: 400;
+}
+
+.monitoring-input:hover,
+.monitoring-select:hover {
+  border-color: #cbd7e5;
+}
+
+.monitoring-input:focus,
+.monitoring-select:focus {
+  outline: none;
+
+  border-color: #1666c5;
+
+  box-shadow:
+    0 0 0 3px rgba(22, 102, 197, 0.08);
+}
+
+/* =========================================================
+   BUTTON HELPERS
+========================================================= */
+
+.monitoring-btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  background: #ffffff;
+
+  border:
+    1px solid #d8e1ed;
+
+  color: #203859;
+
+  border-radius: 12px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.monitoring-btn-outline:hover {
+  background: #f8fafc;
+  border-color: #c9d5e3;
+}
+
+.monitoring-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  background: #1267c7;
+
+  color: #ffffff;
+
+  border: 1px solid #1267c7;
+  border-radius: 10px;
+
+  font-size: 12px;
+  font-weight: 600;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.monitoring-btn-primary:hover {
+  background: #0c55a6;
+  border-color: #0c55a6;
+
+  box-shadow:
+    0 4px 12px rgba(18, 103, 199, 0.15);
+}
+
+/* =========================================================
+   TABLE
+========================================================= */
+
+.monitoring-table-wrapper {
+  overflow: hidden;
+
+  background: #ffffff;
+
+  border:
+    1px solid #e0e7f0;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 4px 18px rgba(15, 35, 68, 0.035);
+}
+
+.monitoring-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.monitoring-table-header {
+  background: #fbfcfe;
+
+  color: #5c7090;
+
+  font-size: 9px;
+  font-weight: 700;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.02em;
+}
+
+.monitoring-table-header th {
+  padding:
+    12px 16px;
+
+  text-align: left;
+
+  border-bottom:
+    1px solid #e9eef5;
+}
+
+.monitoring-table-row {
+  border-bottom:
+    1px solid #edf1f6;
+
+  transition:
+    background-color 0.2s ease;
+}
+
+.monitoring-table-row:last-child {
+  border-bottom: none;
+}
+
+.monitoring-table-row:hover {
+  background: #fafcff;
+}
+
+.monitoring-table-row td {
+  padding:
+    14px 16px;
+
+  vertical-align: middle;
+
+  color: #334b6c;
+
+  font-size: 10.5px;
+}
+
+/* =========================================================
+   TAHAPAN
+========================================================= */
+
+/*
+   Tahapan dibuat formal.
+   Tidak memakai merah / hijau / kuning.
+*/
+
+.monitoring-stage {
+  color: #253d62;
+
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+/* =========================================================
+   STATUS TAHAPAN
+========================================================= */
+
+.monitoring-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 62px;
+
+  padding:
+    4px 12px;
+
+  border-radius: 999px;
+
+  border:
+    1px solid #d6e0eb;
+
+  background: #fbfcfe;
+
+  color: #304967;
+
+  font-size: 9.5px;
+  font-weight: 500;
+
+  line-height: 1.4;
+}
+
+/* =========================================================
+   PROGRESS
+========================================================= */
+
+.monitoring-progress {
+  width: 105px;
+}
+
+.monitoring-progress-value {
+  margin-bottom: 6px;
+
+  color: #243b5e;
+
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.monitoring-progress-track {
+  width: 100%;
+  height: 5px;
+
+  background: #e7edf4;
+
+  border-radius: 999px;
+
+  overflow: hidden;
+}
+
+.monitoring-progress-bar {
+  height: 100%;
+
+  background: #0c4b91;
+
+  border-radius: 999px;
+
+  transition:
+    width 0.3s ease;
+}
+
+/* =========================================================
+   DOCUMENT
+========================================================= */
+
+.monitoring-document {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  color: #405a79;
+
+  font-size: 10.5px;
+}
+
+/* =========================================================
+   DETAIL BUTTON
+========================================================= */
+
+.monitoring-detail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  height: 34px;
+
+  padding:
+    0 12px;
+
+  background: #ffffff;
+
+  border:
+    1px solid #d8e3f0;
+
+  border-radius: 8px;
+
+  color: #0865c8;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.monitoring-detail-btn:hover {
+  background: #f4f8fd;
+  border-color: #bfd4ec;
+}
+
+/* =========================================================
+   PAGINATION
+========================================================= */
+
+.monitoring-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitoring-pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 32px;
+  height: 32px;
+
+  padding:
+    0 8px;
+
+  border:
+    1px solid #dce4ef;
+
+  border-radius: 8px;
+
+  background: #ffffff;
+
+  color: #29415f;
+
+  font-size: 11px;
+  font-weight: 600;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.monitoring-pagination-btn:hover {
+  background: #f7f9fc;
+}
+
+.monitoring-pagination-btn:disabled {
+  opacity: 0.35;
+}
+
+.monitoring-pagination-active {
+  background: #1267c7;
+  border-color: #1267c7;
+  color: #ffffff;
+}
+
+.monitoring-pagination-active:hover {
+  background: #1267c7;
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 1280px) {
+  .monitoring-table {
+    min-width: 1180px;
+  }
+}
+
+@media (max-width: 768px) {
+  .monitoring-title {
+    font-size: 24px;
+  }
+
+  .monitoring-card,
+  .monitoring-filter-container,
+  .monitoring-table-wrapper {
+    border-radius: 14px;
+  }
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* =========================================================
+   LIVE MAP - MONITORING PENGADAAN TANAH
+========================================================= */
+
+.land-acquisition-map .leaflet-container {
+  width: 100%;
+  height: 100%;
+
+  font-family: inherit;
+
+  background: #eef3f8;
+
+  outline: none;
+}
+
+/* =========================================================
+   ZOOM BUTTON
+========================================================= */
+
+.land-acquisition-map .leaflet-bar {
+  overflow: hidden;
+
+  border: 0;
+
+  border-radius: 12px;
+
+  box-shadow:
+    0 6px 18px
+    rgba(15, 53, 92, 0.14);
+}
+
+.land-acquisition-map .leaflet-bar a {
+  display: flex;
+
+  width: 36px;
+  height: 36px;
+
+  align-items: center;
+  justify-content: center;
+
+  border: 0;
+
+  background: #ffffff;
+
+  color: #0a295c;
+
+  font-size: 18px;
+  font-weight: 700;
+
+  transition:
+    background 0.2s ease;
+}
+
+.land-acquisition-map .leaflet-bar a:hover {
+  background: #f3f7fb;
+
+  color: #0b63ce;
+}
+
+/* =========================================================
+   LAYER CONTROL
+========================================================= */
+
+.land-acquisition-map
+  .leaflet-control-layers {
+  border: 1px solid #e1e8f0;
+
+  border-radius: 12px;
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.96
+    );
+
+  box-shadow:
+    0 6px 18px
+    rgba(15, 53, 92, 0.12);
+
+  color: #0a295c;
+
+  font-size: 10px;
+}
+
+.land-acquisition-map
+  .leaflet-control-layers-expanded {
+  padding: 10px 12px;
+}
+
+/* =========================================================
+   POPUP
+========================================================= */
+
+.land-acquisition-map
+  .leaflet-popup-content-wrapper {
+  border-radius: 14px;
+
+  box-shadow:
+    0 14px 35px
+    rgba(15, 53, 92, 0.18);
+}
+
+.land-acquisition-map
+  .leaflet-popup-content {
+  margin: 14px 16px;
+}
+
+/* =========================================================
+   SCALE
+========================================================= */
+
+.land-acquisition-map
+  .leaflet-control-scale-line {
+  border-color: #ffffff;
+
+  border-radius: 5px;
+
+  background:
+    rgba(
+      10,
+      41,
+      92,
+      0.78
+    );
+
+  color: #ffffff;
+
+  font-size: 8px;
+}
+
+/* =========================================================
+   ATTRIBUTION
+========================================================= */
+
+.land-acquisition-map
+  .leaflet-control-attribution {
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.82
+    );
+
+  font-size: 8px;
+
+  color: #64748b;
+}
+
+/* =========================================================
+   MOBILE
+========================================================= */
+
+@media (max-width: 768px) {
+  .land-acquisition-map {
+    min-height: 320px;
+  }
+
+  .land-acquisition-map
+    .leaflet-control-layers {
+    font-size: 9px;
+  }
+}

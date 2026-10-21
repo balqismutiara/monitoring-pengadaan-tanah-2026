@@ -1,693 +1,458 @@
-import { Program } from './types';
+import { Program, SubTask, SubTaskStatus, RkmSummary } from './types';
+
+/**
+ * Sumber data:
+ * 1. Dokumen "Monitoring Program Pengadaan Tanah 2026 - Tugas" (daftar Program, Task, Sub Task & status)
+ * 2. Laporan Bulanan RKM 2026 – Dept. Strategi Pengelolaan Aset Terintegrasi (Capaian, Isu, Next Step)
+ *
+ * Status: DONE (✅ Selesai) · WIP (⏳ Proses) · NOT_STARTED (❌ Belum Mulai) · DELAYED (Tertunda)
+ * Sub task tanpa tanggal di dokumen sumber memakai tanggal rencana RKM (01/01/2026 – 31/12/2026)
+ * dan ditandai `estimatedSchedule: true` agar mudah dikoreksi lewat Master Data.
+ */
+
+export const PIC_KIJING = 'Yayang Gunawan';
+export const PIC_NPEA = 'Novan Haditya';
+export const PIC_REGIONAL = 'Alfiansyah Nur Arochman';
+
+export const RKM_PERIOD_START = '2026-01-01';
+export const RKM_PERIOD_END = '2026-12-31';
+
+/** Ringkasan header Laporan Bulanan RKM (realisasi aktual vs target baseline). */
+export const RKM_SUMMARY: RkmSummary = {
+  title: 'Pengadaan Tanah untuk Mendukung Proyek Strategis PT Pelabuhan Indonesia (Persero)',
+  unit: 'Dept. Strategi Pengelolaan Aset Terintegrasi',
+  actual: 83,
+  baseline: 82,
+  status: 'On Progress',
+  startDate: RKM_PERIOD_START,
+  endDate: RKM_PERIOD_END,
+  source: 'Laporan Bulanan RKM Tahun 2026',
+};
+
+const sub = (
+  id: string,
+  name: string,
+  status: SubTaskStatus,
+  progress: number,
+  pic: string,
+  startDate: string,
+  dueDate: string,
+  notes = '',
+  estimatedSchedule = true,
+): SubTask => ({
+  id,
+  name,
+  status,
+  progress: status === 'DONE' ? 100 : progress,
+  pic,
+  startDate,
+  dueDate,
+  notes,
+  estimatedSchedule,
+});
+
+const K = PIC_KIJING;
+const N = PIC_NPEA;
+const R = PIC_REGIONAL;
+const END = RKM_PERIOD_END;
 
 export const INITIAL_PROGRAMS: Program[] = [
+  // =====================================================================
+  // 1. PENGADAAN TANAH TERMINAL KIJING
+  // =====================================================================
   {
-    id: "PRG-01",
-    name: "Pengadaan Tanah Terminal Kijing",
+    id: 'PRG-01',
+    code: 'IS-18-KMSL-01-01',
+    name: 'Pengadaan Tanah Terminal Kijing',
+    pic: K,
+    startDate: RKM_PERIOD_START,
+    endDate: RKM_PERIOD_END,
+    rkm: { actual: 33, baseline: 33, status: 'On Progress' },
+    capaian: [
+      {
+        title: 'Pemindahan Makam Tionghoa',
+        detail:
+          'Telah selesai pengambilan dan pemindahan makam sebanyak 170 makam dengan capaian 100% sesuai surat keterangan pemindahan dari YPKOT.',
+      },
+      {
+        title: 'Relokasi Aset Pemerintah Desa Sungai Duri II dan Sungai Limau',
+        detail:
+          'Telah disampaikan laporan progres pekerjaan dan pemutusan kontrak pekerjaan relokasi aset; saat ini dalam proses penunjukan vendor pengganti.',
+      },
+      {
+        title: 'Pensertipikatan HGB di atas HPL Konsesi',
+        detail:
+          'Telah dilakukan pembayaran PNBP pengukuran bidang tanah yang akan dimohonkan HGB Konsesi Terminal Kijing.',
+      },
+      {
+        title: 'Pendaftaran Pensertipikatan RJN',
+        detail:
+          'Telah dilakukan penyerahan hasil pengadaan tanah RJN dengan prestasi fisik 100%.',
+      },
+    ],
+    isu: [
+      {
+        title: 'Kelengkapan Dokumen Pertanahan',
+        detail:
+          'Dokumen pensertipikatan HGB Konsesi dan RJN masih dalam proses pemenuhan dan verifikasi serta penunjukan Notaris/PPAT.',
+      },
+      {
+        title: 'Penyelesaian Relokasi Aset',
+        detail:
+          'Relokasi dan pengosongan lahan masih memerlukan koordinasi dengan stakeholder dan penunjukan kembali vendor baru.',
+      },
+    ],
+    nextStep: [
+      {
+        title: 'Sertipikasi Ex. Lahan Makam Tionghoa',
+        detail: 'Penyiapan dokumen terkait hasil pengadaan tanah.',
+      },
+      {
+        title: 'Relokasi Aset Pemerintah Desa Sungai Duri II dan Sungai Limau',
+        detail: 'Monitoring dan evaluasi proses pekerjaan (vendor pengganti).',
+      },
+      {
+        title: 'Pensertipikatan HGB di atas HPL Konsesi',
+        detail:
+          'Penetapan Notaris/PPAT untuk proses pensertipikatan HGB Konsesi Terminal Kijing dan melengkapi kekurangan dokumen.',
+      },
+      {
+        title: 'Pendaftaran Pensertipikatan RJN',
+        detail:
+          'Inventarisasi kelengkapan dokumen persyaratan permohonan pensertipikatan hasil pengadaan tanah RJN.',
+      },
+    ],
     tasks: [
       {
-        id: "TSK-01A",
-        name: "Konsinyasi dan Pengosongan Makam Tionghoa (RKM)",
-        type: "RKM",
+        id: 'TSK-01A',
+        name: 'Konsinyasi dan Pengosongan Makam Tionghoa (RKM)',
+        type: 'RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.5',
+        description: 'Pemberian ganti kerugian melalui konsinyasi dan pengosongan lahan makam Tionghoa.',
         subTasks: [
-          {
-            id: "SUB-01A1",
-            name: "Pengambilan UGR Ahli Waris di PN Mempawah",
-            status: "DONE",
-            progress: 100,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-01-15",
-            dueDate: "2026-03-15",
-            notes: "Uang Ganti Kerugian (UGR) telah diambil seluruh ahli waris di PN Mempawah."
-          },
-          {
-            id: "SUB-01A2",
-            name: "Permohonan Pendampingan oleh Kejati Kalbar",
-            status: "DONE",
-            progress: 100,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-02-01",
-            dueDate: "2026-04-10",
-            notes: "Kejati Kalbar telah memberikan pendampingan hukum penuh."
-          },
-          {
-            id: "SUB-01A3",
-            name: "Pemindahan Makam oleh Ahli Waris",
-            status: "WIP",
-            progress: 40,
-            pic: "Dewi Lestari",
-            startDate: "2026-04-15",
-            dueDate: "2026-07-20",
-            notes: "Pemindahan makam sedang berjalan bertahap oleh keluarga ahli waris."
-          },
-          {
-            id: "SUB-01A4",
-            name: "Land Clearing Lahan",
-            status: "WIP",
-            progress: 20,
-            pic: "Andi Wijaya",
-            startDate: "2026-05-01",
-            dueDate: "2026-08-15",
-            notes: "Eksekusi land clearing paralel dengan pemindahan makam yang selesai."
-          }
-        ]
+          sub('SUB-01A1', 'Pengambilan UGR Ahli Waris di PN Mempawah', 'DONE', 100, K, '2026-01-15', '2026-03-15', 'UGR telah diambil ahli waris di PN Mempawah.'),
+          sub('SUB-01A2', 'Permohonan Pendampingan oleh Kejati Kalbar', 'DONE', 100, K, '2026-02-01', '2026-04-10', 'Pendampingan Kejati Kalbar telah diperoleh.'),
+          sub('SUB-01A3', 'Pemindahan Makam oleh Ahli Waris', 'DONE', 100, K, '2026-04-15', '2026-07-20', '170 makam telah dipindahkan (100%) sesuai surat keterangan pemindahan YPKOT.'),
+          sub('SUB-01A4', 'Land Clearing Lahan', 'DONE', 100, K, '2026-05-01', '2026-08-15', 'Land clearing lahan ex. makam telah selesai.'),
+        ],
       },
       {
-        id: "TSK-01B",
-        name: "Relokasi Aset Pemerintah Desa (RKM)",
-        type: "RKM",
+        id: 'TSK-01B',
+        name: 'Relokasi Aset Pemerintah Desa (RKM)',
+        type: 'RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.6',
+        description: 'Relokasi aset Pemerintah Desa Sungai Duri II dan Sungai Limau, Kijing.',
         subTasks: [
-          {
-            id: "SUB-01B1",
-            name: "Kontrak Pekerjaan Pembangunan Aset Desa",
-            status: "DONE",
-            progress: 100,
-            pic: "Dewi Lestari",
-            startDate: "2026-02-10",
-            dueDate: "2026-04-01",
-            notes: "Tandatangan kerja sama dengan kontraktor pelaksana relokasi."
-          },
-          {
-            id: "SUB-01B2",
-            name: "Pelaksanaan Pekerjaan Pembangunan Aset Desa",
-            status: "WIP",
-            progress: 60,
-            pic: "Dewi Lestari",
-            startDate: "2026-04-05",
-            dueDate: "2026-07-30",
-            notes: "Konstruksi fisik relokasi balai desa dan fasilitas umum mencapai 60%."
-          },
-          {
-            id: "SUB-01B3",
-            name: "Serah Terima Aset Desa",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Dewi Lestari",
-            startDate: "2026-05-10",
-            dueDate: "2026-05-15",
-            notes: "Terlambat. Terhambat karena administrasi persetujuan bupati yang belum turun."
-          }
-        ]
+          sub('SUB-01B1', 'Kontrak Pekerjaan Pembangunan Aset Desa', 'WIP', 50, K, '2026-02-10', END, 'Kontrak awal telah diputus; proses penunjukan kontraktor/vendor pengganti sedang berjalan.'),
+          sub('SUB-01B2', 'Pelaksanaan Pekerjaan Pembangunan Aset Desa', 'WIP', 50, K, '2026-04-05', END, 'Progres fisik 50%; dilanjutkan oleh vendor pengganti.'),
+          sub('SUB-01B3', 'Serah Terima Aset Desa', 'NOT_STARTED', 0, K, '2026-11-15', END, 'Menunggu penyelesaian pekerjaan pembangunan aset desa.'),
+        ],
       },
       {
-        id: "TSK-01C",
-        name: "Pendaftaran Pensertipikatan RJN (RKM)",
-        type: "RKM",
+        id: 'TSK-01C',
+        name: 'Pendaftaran Pensertipikatan RJN (RKM)',
+        type: 'RKM',
+        stage: 'D. Penyerahan Hasil',
+        taskCode: 'D.1',
+        description: 'Penyerahan hasil pengadaan tanah RJN, tukar menukar dengan Kementerian PU dan pensertipikatan.',
         subTasks: [
-          {
-            id: "SUB-01C1",
-            name: "Penyerahan Hasil Pengadaan Tanah RJN",
-            status: "DONE",
-            progress: 100,
-            pic: "Budi Santoso",
-            startDate: "2026-03-01",
-            dueDate: "2026-05-10",
-            notes: "Dokumen pengadaan RJN telah diserahkan lengkap ke instansi terkait."
-          },
-          {
-            id: "SUB-01C2",
-            name: "Monitoring Pelaksanaan Pekerjaan Pembangunan RJN",
-            status: "WIP",
-            progress: 50,
-            pic: "Budi Santoso",
-            startDate: "2026-05-15",
-            dueDate: "2026-09-10",
-            notes: "Pembangunan RJN terus dimonitoring bersama dinas PUPR."
-          }
-        ]
+          sub('SUB-01C1', 'Penyerahan Hasil Pengadaan Tanah RJN', 'DONE', 100, K, '2026-03-01', '2026-05-10', 'Penyerahan hasil pengadaan tanah RJN telah dilakukan (prestasi fisik 100%).'),
+          sub('SUB-01C2', 'Monitoring Pelaksanaan Pekerjaan Pembangunan RJN', 'WIP', 90, K, '2026-05-15', END, 'Progres pembangunan RJN 90%.'),
+          sub('SUB-01C3', 'Penunjukan KJPP Barang Pengganti', 'WIP', 70, K, '2026-09-16', '2026-10-22', 'Task baru. Penunjukan KJPP 70%.', false),
+          sub('SUB-01C4', 'Pelaksanaan Penilaian dan Laporan Hasil Penilaian Barang Pengganti', 'NOT_STARTED', 0, K, '2026-10-27', '2026-11-27', 'Dimulai setelah KJPP ditunjuk.', false),
+          sub('SUB-01C5', 'Serah Terima Tukar Menukar antara Pelindo dan Kementerian PU', 'NOT_STARTED', 0, K, '2026-11-28', END, 'Menunggu laporan hasil penilaian barang pengganti.'),
+          sub('SUB-01C6', 'Penunjukan Notaris Sertifikasi Tanah RJN', 'NOT_STARTED', 0, K, '2026-11-28', END, 'Inventarisasi kelengkapan dokumen persyaratan permohonan sertipikat RJN.'),
+        ],
       },
       {
-        id: "TSK-01D",
-        name: "Pensertipikatan HGB di atas HPL Konsesi (RKM)",
-        type: "RKM",
+        id: 'TSK-01D',
+        name: 'Pensertipikatan HGB di atas HPL Konsesi (RKM)',
+        type: 'RKM',
+        stage: 'D. Penyerahan Hasil',
+        taskCode: 'D.2',
+        description: 'Pensertipikatan HGB di atas HPL Konsesi Terminal Kijing.',
         subTasks: [
-          {
-            id: "SUB-01D1",
-            name: "Permohonan Pengukuran Bidang Tanah",
-            status: "DONE",
-            progress: 100,
-            pic: "Budi Santoso",
-            startDate: "2026-01-10",
-            dueDate: "2026-02-20",
-            notes: "Pengukuran bidang tanah selesai diproses oleh BPN."
-          },
-          {
-            id: "SUB-01D2",
-            name: "Pembayaran PNBP Pengukuran dan Pemetaan Bidang Tanah",
-            status: "DONE",
-            progress: 100,
-            pic: "Budi Santoso",
-            startDate: "2026-02-25",
-            dueDate: "2026-03-05",
-            notes: "PNBP pengukuran lunas terbayar."
-          },
-          {
-            id: "SUB-01D3",
-            name: "Penunjukan Notaris/ PPAT Pengurusan Pensertipikatan",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Budi Santoso",
-            startDate: "2026-03-10",
-            dueDate: "2026-04-20",
-            notes: "Terlambat. Proses pengadaan notaris terhambat regulasi internal perusahaan."
-          },
-          {
-            id: "SUB-01D4",
-            name: "Pembayaran PNBP terkait Pensertipikatan",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Budi Santoso",
-            startDate: "2026-04-25",
-            dueDate: "2026-05-10",
-            notes: "Terlambat. Menunggu penunjukan Notaris/PPAT yang sah."
-          },
-          {
-            id: "SUB-01D5",
-            name: "BPHTB HGB Konsesi",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-05-12",
-            dueDate: "2026-05-30",
-            notes: "Terlambat. Dokumen pendukung untuk penetapan BPHTB belum lengkap."
-          },
-          {
-            id: "SUB-01D6",
-            name: "Penerbitan SK HGB Konsesi",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Budi Santoso",
-            startDate: "2026-06-01",
-            dueDate: "2026-06-10",
-            notes: "Terlambat. Menunggu kelengkapan berkas BPHTB dan rekomendasi Kanwil BPN."
-          },
-          {
-            id: "SUB-01D7",
-            name: "Penerbitan Sertipikat HGB Konsesi",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Budi Santoso",
-            startDate: "2026-06-11",
-            dueDate: "2026-06-15",
-            notes: "Terlambat. Bergantung pada penerbitan SK HGB Konsesi."
-          }
-        ]
-      }
-    ]
+          sub('SUB-01D1', 'Permohonan Pengukuran Bidang Tanah', 'DONE', 100, K, '2026-01-10', '2026-02-20', 'Permohonan pengukuran telah diajukan ke BPN.'),
+          sub('SUB-01D2', 'Pembayaran PNBP Pengukuran dan Pemetaan Bidang Tanah', 'DONE', 100, K, '2026-02-25', '2026-03-05', 'PNBP pengukuran bidang tanah telah dibayar.'),
+          sub('SUB-01D3', 'Penunjukan Notaris/ PPAT Pengurusan Pensertipikatan', 'WIP', 10, K, '2026-10-15', END, 'Proses penetapan Notaris/PPAT dan melengkapi kekurangan dokumen.', false),
+          sub('SUB-01D4', 'Pembayaran PNBP terkait Pensertipikatan', 'NOT_STARTED', 0, K, '2026-11-01', END, 'Menunggu penunjukan Notaris/PPAT.'),
+          sub('SUB-01D5', 'BPHTB HGB Konsesi', 'NOT_STARTED', 0, K, '2026-11-15', END, 'Menunggu penunjukan Notaris/PPAT.'),
+          sub('SUB-01D6', 'Penerbitan SK HGB Konsesi', 'NOT_STARTED', 0, K, '2026-12-01', END, 'Bergantung pada pembayaran PNBP dan BPHTB.'),
+          sub('SUB-01D7', 'Penerbitan Sertipikat HGB Konsesi', 'NOT_STARTED', 0, K, '2026-12-10', END, 'Bergantung pada penerbitan SK HGB Konsesi.'),
+        ],
+      },
+      {
+        id: 'TSK-01E',
+        name: 'Pensertipikatan Makam Tionghoa dan RJN Eksisting',
+        type: 'RKM',
+        stage: 'D. Penyerahan Hasil',
+        taskCode: 'D.3',
+        description: 'Task baru. Sertipikasi ex. lahan makam Tionghoa dan RJN eksisting.',
+        subTasks: [
+          sub('SUB-01E1', 'Penyiapan Dokumen Hasil Pengadaan Tanah (Ex. Lahan Makam Tionghoa & RJN Eksisting)', 'NOT_STARTED', 0, K, '2026-11-01', END, 'Next step RKM: penyiapan dokumen terkait hasil pengadaan tanah. Rincian sub task belum ditetapkan.'),
+        ],
+      },
+    ],
   },
-  {
-    id: "PRG-02",
-    name: "Pengadaan Tanah NPEA",
-    tasks: [
-      {
-        id: "TSK-02A",
-        name: "Relokasi Aset TNI AL/ Tukar Menukar BMN TNI AL (RKM)",
-        type: "RKM",
-        subTasks: [
-          {
-            id: "SUB-02A1",
-            name: "BA Kesepakatan Lokasi Tanah dan Bangunan Pengganti",
-            status: "DONE",
-            progress: 100,
-            pic: "Rahmat Hidayat",
-            startDate: "2026-01-05",
-            dueDate: "2026-01-20",
-            notes: "BAK disepakati dan ditandatangani oleh Danlantamal terkait."
-          },
-          {
-            id: "SUB-02A2",
-            name: "Perolehan Ijin Prinsip Tukar Menukar",
-            status: "WIP",
-            progress: 30,
-            pic: "Rahmat Hidayat",
-            startDate: "2026-02-01",
-            dueDate: "2026-07-15",
-            notes: "Koordinasi aktif dengan Mabes AL dan Kementerian Keuangan sedang berjalan."
-          },
-          {
-            id: "SUB-02A3",
-            name: "Perolehan Ijin Pelaksanaan Tukar Menukar",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Rahmat Hidayat",
-            startDate: "2026-03-15",
-            dueDate: "2026-05-01",
-            notes: "Terlambat. Menunggu ijin prinsip keluar terlebih dahulu."
-          },
-          {
-            id: "SUB-02A4",
-            name: "PKS Tukar Menukar",
-            status: "WIP",
-            progress: 25,
-            pic: "Siti Rahmawati",
-            startDate: "2026-04-10",
-            dueDate: "2026-08-30",
-            notes: "Penyusunan draf PKS bersama Tim Aset TNI AL."
-          },
-          {
-            id: "SUB-02A5",
-            name: "Permohonan LO dan/ atau LA dari Kejaksaan",
-            status: "WIP",
-            progress: 40,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-05-01",
-            dueDate: "2026-08-15",
-            notes: "Ekspose perkara telah dilakukan, menunggu Legal Opinion tertulis Kejaksaan Agung."
-          },
-          {
-            id: "SUB-02A6",
-            name: "DPPT Tanah Pengganti (Tj Pinang, Pontianak, Merauke)",
-            status: "DONE",
-            progress: 100,
-            pic: "Rahmat Hidayat",
-            startDate: "2025-11-15",
-            dueDate: "2026-02-15",
-            notes: "DPPT selesai disusun dan telah diajukan ke masing-masing gubernur."
-          },
-          {
-            id: "SUB-02A7",
-            name: "Penilaian Tanah Pengganti",
-            status: "DONE",
-            progress: 100,
-            pic: "Rahmat Hidayat",
-            startDate: "2026-02-20",
-            dueDate: "2026-03-20",
-            notes: "Kantor Jasa Penilai Publik (KJPP) telah merilis nilai taksiran."
-          },
-          {
-            id: "SUB-02A8",
-            name: "Pelaksanaan Pengadaan Tanah Pengganti",
-            status: "WIP",
-            progress: 50,
-            pic: "Rahmat Hidayat",
-            startDate: "2026-04-01",
-            dueDate: "2026-09-30",
-            notes: "Sedang sosialisasi ke pemilik lahan di Tanjung Pinang dan Pontianak."
-          },
-          {
-            id: "SUB-02A9",
-            name: "Kesepakatan Bentuk dan Design Bangunan Pengganti",
-            status: "WIP",
-            progress: 45,
-            pic: "Dewi Lestari",
-            startDate: "2026-04-15",
-            dueDate: "2026-09-01",
-            notes: "Design mess dan kantor perwakilan TNI AL sedang difinalisasi."
-          },
-          {
-            id: "SUB-02A10",
-            name: "Monitoring Pekerjaan Bangunan Pengganti",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Dewi Lestari",
-            startDate: "2026-05-01",
-            dueDate: "2026-06-05",
-            notes: "Terlambat. Pembangunan fisik belum dapat dimulai sebelum PKS ditandatangani."
-          },
-          {
-            id: "SUB-02A11",
-            name: "Serah Terima Aset",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Rahmat Hidayat",
-            startDate: "2026-06-01",
-            dueDate: "2026-06-18",
-            notes: "Terlambat. Terhambat oleh progres pembangunan fisik pengganti yang nol."
-          }
-        ]
-      },
-      {
-        id: "TSK-02B",
-        name: "Relokasi Aset/ Pemberian Ganti Kerugian Bentuk Lain PT KBN (RKM) (Bidang 22 dan 27)",
-        type: "RKM",
-        subTasks: [
-          {
-            id: "SUB-02B1",
-            name: "PKS Pemberian Ganti Kerugian Dalam Bentuk Lain dengan PT KBN",
-            status: "DONE",
-            progress: 100,
-            pic: "Siti Rahmawati",
-            startDate: "2026-02-15",
-            dueDate: "2026-04-10",
-            notes: "PKS telah ditandatangani kedua belah pihak."
-          },
-          {
-            id: "SUB-02B2",
-            name: "Pembayaran Uang Pengganti",
-            status: "DONE",
-            progress: 100,
-            pic: "Siti Rahmawati",
-            startDate: "2026-04-12",
-            dueDate: "2026-05-01",
-            notes: "Pembayaran ganti rugi bentuk lain telah lunas ditransfer."
-          },
-          {
-            id: "SUB-02B3",
-            name: "Monitoring Pekerjaan Bangunan Pengganti",
-            status: "WIP",
-            progress: 40,
-            pic: "Dewi Lestari",
-            startDate: "2026-05-05",
-            dueDate: "2026-10-15",
-            notes: "Konstruksi gudang pengganti PT KBN sedang berjalan kondusif."
-          }
-        ]
-      },
-      {
-        id: "TSK-02C",
-        name: "Pendaftaran Pensertipikatan Hasil Pengadaan Tanah NPEA (RKM)",
-        type: "RKM",
-        subTasks: [
-          {
-            id: "SUB-02C1",
-            name: "Penyerahan Hasil Pengadaan Tanah (parsial)",
-            status: "DONE",
-            progress: 100,
-            pic: "Budi Santoso",
-            startDate: "2026-02-01",
-            dueDate: "2026-04-15",
-            notes: "Berkas parsial diserahkan ke Kantor Pertanahan Jakarta Utara."
-          },
-          {
-            id: "SUB-02C2",
-            name: "Pemecahan bidang tanah",
-            status: "WIP",
-            progress: 30,
-            pic: "Budi Santoso",
-            startDate: "2026-04-20",
-            dueDate: "2026-08-15",
-            notes: "Pengukuran untuk pemecahan sertipikat induk sedang berjalan di lapangan."
-          },
-          {
-            id: "SUB-02C3",
-            name: "Penunjukan Notaris/ PPAT Pengurusan Pensertipikatan",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Budi Santoso",
-            startDate: "2026-05-01",
-            dueDate: "2026-05-25",
-            notes: "Terlambat. Ada pembatalan pemenang pengadaan vendor sebelumnya, diulang kembali."
-          }
-        ]
-      },
-      {
-        id: "TSK-02D",
-        name: "Konsinyasi dan Pengosongan Lahan (RKM)",
-        type: "RKM",
-        subTasks: [
-          {
-            id: "SUB-02D1",
-            name: "Pendaftaran dan Pembayaran UGR Konsinyasi ke PN Jakut",
-            status: "DONE",
-            progress: 100,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-02-20",
-            dueDate: "2026-04-25",
-            notes: "Dana konsinyasi telah ditempatkan di rekening pengadilan PN Jakut."
-          },
-          {
-            id: "SUB-02D2",
-            name: "Penetapan Pengadilan terkait Konsinyasi",
-            status: "WIP",
-            progress: 50,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-05-01",
-            dueDate: "2026-07-25",
-            notes: "Sidang pembacaan penetapan dijadwalkan akhir Juni."
-          },
-          {
-            id: "SUB-02D3",
-            name: "Monitoring pengambilan UGR Konsinyasi oleh PYB di Pengadilan Jakut",
-            status: "WIP",
-            progress: 35,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-05-10",
-            dueDate: "2026-08-20",
-            notes: "Sebagian Pihak Yang Berhak (PYB) mulai melengkapi dokumen klaim."
-          },
-          {
-            id: "SUB-02D4",
-            name: "Pengosongan Lahan",
-            status: "WIP",
-            progress: 20,
-            pic: "Andi Wijaya",
-            startDate: "2026-05-25",
-            dueDate: "2026-09-15",
-            notes: "Persiapan Satpol PP dan kepolisian untuk pengamanan pembersihan lahan."
-          }
-        ]
-      },
-      {
-        id: "TSK-02E",
-        name: "Perpanjangan Penlok NPEA (Non RKM)",
-        type: "NON_RKM",
-        subTasks: [
-          {
-            id: "SUB-02E1",
-            name: "Permohonan rekomendasi perpanjangan penlok ke Kanwil BPN DKI Jakarta",
-            status: "DONE",
-            progress: 100,
-            pic: "Siti Rahmawati",
-            startDate: "2026-01-10",
-            dueDate: "2026-03-10",
-            notes: "Rekomendasi teknis Kanwil BPN DKI Jakarta selesai diterbitkan."
-          },
-          {
-            id: "SUB-02E2",
-            name: "Rekomendasi perpanjangan penlok dari Kanwil BPN DKI Jakarta",
-            status: "WIP",
-            progress: 50,
-            pic: "Siti Rahmawati",
-            startDate: "2026-03-15",
-            dueDate: "2026-07-10",
-            notes: "BPN sedang memverifikasi luasan bidang sisa pengadaan."
-          },
-          {
-            id: "SUB-02E3",
-            name: "Permohonan perpanjangan penlok ke Gubernur DKI Jakarta",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Siti Rahmawati",
-            startDate: "2026-04-10",
-            dueDate: "2026-05-15",
-            notes: "Terlambat. Surat permohonan ke gubernur tertunda menunggu kelengkapan verifikasi BPN."
-          },
-          {
-            id: "SUB-02E4",
-            name: "SK Perpanjangan penlok dari Gubernur DKI Jakarta",
-            status: "DELAYED",
-            progress: 0,
-            pic: "Siti Rahmawati",
-            startDate: "2026-05-20",
-            dueDate: "2026-06-10",
-            notes: "Terlambat. Biro Hukum DKI tidak bisa memproses SK tanpa permohonan resmi draf BPN."
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: "PRG-03",
-    name: "Monitoring dan Asistensi Tahapan Pengadaan Tanah Regional/Cabang",
-    tasks: [
-      {
-        id: "TSK-031",
-        name: "Pengadaan Tanah Sorong (RKM)",
-        type: "RKM",
-        subTasks: [
-          {
-            id: "SUB-0311",
-            name: "Pemberian ganti kerugian pengadaan tanah pengembangan pelabuhan sorong tahap III",
-            status: "WIP",
-            progress: 60,
-            pic: "Andi Wijaya",
-            startDate: "2026-04-01",
-            dueDate: "2026-07-15",
-            notes: "Pembayaran sebagian warga tersisa terus dikomunikasikan."
-          },
-          {
-            id: "SUB-0312",
-            name: "Pembongkaran bangunan yang telah diberikan ganti kerugian",
-            status: "WIP",
-            progress: 30,
-            pic: "Andi Wijaya",
-            startDate: "2026-05-01",
-            dueDate: "2026-08-10",
-            notes: "Bangunan yang beres dibayar mulai dinomori untuk diratakan."
-          },
-          {
-            id: "SUB-0313",
-            name: "Penyelesaian objek pengadaan tanah BMN",
-            status: "WIP",
-            progress: 20,
-            pic: "Ahmad Sujatmiko",
-            startDate: "2026-05-15",
-            dueDate: "2026-09-01",
-            notes: "Klarifikasi status BMN dengan KPKNL Sorong sedang dikoordinasikan."
-          },
-          {
-            id: "SUB-0314",
-            name: "Sertipikasi lahan hasil reklamasi",
-            status: "WIP",
-            progress: 10,
-            pic: "Budi Santoso",
-            startDate: "2026-06-01",
-            dueDate: "2026-12-15",
-            notes: "Pengumpulan berkas fisik peta bidang hasil reklamasi pelabuhan."
-          }
-        ]
-      },
-      {
-        id: "TSK-032",
-        name: "Pengadaan Tanah Batang (RKM)",
-        type: "RKM",
-        subTasks: [
-          {
-            id: "SUB-0321",
-            name: "Pemberian ganti kerugian",
-            status: "DONE",
-            progress: 100,
-            pic: "Andi Wijaya",
-            startDate: "2026-01-15",
-            dueDate: "2026-03-12",
-            notes: "Penyelesaian UGR lahan Batang clear 100%."
-          },
-          {
-            id: "SUB-0322",
-            name: "Balik Nama dan Pelepasan HPL PTPN I",
-            status: "DONE",
-            progress: 100,
-            pic: "Andi Wijaya",
-            startDate: "2026-03-01",
-            dueDate: "2026-04-20",
-            notes: "BA Pelepasan Hak dari PTPN I selaku BUMN telah diterbitkan."
-          },
-          {
-            id: "SUB-0323",
-            name: "Pemecahan bidang tanah HPL PTPN",
-            status: "WIP",
-            progress: 60,
-            pic: "Budi Santoso",
-            startDate: "2026-05-01",
-            dueDate: "2026-07-25",
-            notes: "Kantah Batang sedang memproses peta bidang pecahan."
-          },
-          {
-            id: "SUB-0324",
-            name: "Penunjukan Notaris/ PPAT Pengurusan Pensertipikatan",
-            status: "WIP",
-            progress: 40,
-            pic: "Budi Santoso",
-            startDate: "2026-05-15",
-            dueDate: "2026-08-10",
-            notes: "Seleksi admin calon Notaris/PPAT mitra regional sedang berjalan."
-          }
-        ]
-      },
-      {
-        id: "TSK-033",
-        name: "Pengadaan Tanah Kuala Tanjung (RKM)",
-        type: "RKM",
-        subTasks: [
-          {
-            id: "SUB-0331",
-            name: "PPK: Penyelesaian Outstanding Tahap Pelaksanaan Pengadaan Tanah",
-            status: "WIP",
-            progress: 50,
-            pic: "Faisal Rahman",
-            startDate: "2026-04-01",
-            dueDate: "2026-08-15",
-            notes: "Pembahasan sengketa tumpang tindih kepemilikan di level PPK."
-          },
-          {
-            id: "SUB-0332",
-            name: "PPK: Pengurusan KKPR dan Pensertipikatan",
-            status: "WIP",
-            progress: 30,
-            pic: "Faisal Rahman",
-            startDate: "2026-05-15",
-            dueDate: "2026-10-30",
-            notes: "Pengajuan ijin KKPR melalui sistem OSS masih diverifikasi tata ruang daerah."
-          },
-          {
-            id: "SUB-0333",
-            name: "PMT: Penyelesaian Outstanding Tahap Pelaksanaan Pengadaan Tanah",
-            status: "WIP",
-            progress: 40,
-            pic: "Faisal Rahman",
-            startDate: "2026-04-10",
-            dueDate: "2026-08-20",
-            notes: "Rekonsiliasi berkas nominatif PMT bersama Satgas BPN."
-          },
-          {
-            id: "SUB-0334",
-            name: "PMT: Pengurusan KKPR dan Pensertipikatan",
-            status: "WIP",
-            progress: 20,
-            pic: "Faisal Rahman",
-            startDate: "2026-05-20",
-            dueDate: "2026-11-15",
-            notes: "Pendaftaran awal di SIPR (Sistem Informasi Penataan Ruang)."
-          }
-        ]
-      },
-      {
-        id: "TSK-034",
-        name: "Pengadaan Tanah Akses Jalan MNP (Non RKM)",
-        type: "NON_RKM",
-        subTasks: [
-          {
-            id: "SUB-0341",
-            name: "Penyampaian mekanisme pemberian ganti kerugian a.n. Ahli Waris Ahmad Dg. Mangawing",
-            status: "DONE",
-            progress: 100,
-            pic: "Faisal Rahman",
-            startDate: "2026-01-10",
-            dueDate: "2026-02-15",
-            notes: "Mekanisme legalitas disepakati bersama ahli waris dan forkopimda."
-          },
-          {
-            id: "SUB-0342",
-            name: "Pembayaran ganti kerugian a.n. Ahli Waris Ahmad Dg. Mangawing Tahap I",
-            status: "WIP",
-            progress: 75,
-            pic: "Faisal Rahman",
-            startDate: "2026-03-01",
-            dueDate: "2026-07-10",
-            notes: "Penyaluran dana tahap I mencapai 75% selesai diverifikasi PN Makassar."
-          },
-          {
-            id: "SUB-0343",
-            name: "Pengajuan anggaran investasi pengadaan tanah oleh Reg 4",
-            status: "WIP",
-            progress: 50,
-            pic: "Andi Wijaya",
-            startDate: "2026-04-15",
-            dueDate: "2026-08-05",
-            notes: "Pengajuan tambahan pagu investasi sedang dievaluasi Direksi Keuangan."
-          },
-          {
-            id: "SUB-0344",
-            name: "Pembayaran ganti kerugian a.n. Ahli Waris Ahmad Dg. Mangawing Tahap II",
-            status: "WIP",
-            progress: 10,
-            pic: "Faisal Rahman",
-            startDate: "2026-05-20",
-            dueDate: "2026-09-30",
-            notes: "Sedang mempersiapkan administrasi serahan tahap I untuk mencairkan tahap II."
-          }
-        ]
-      }
-    ]
-  }
-];
 
-export const INITIAL_PICS = [
-  "Ahmad Sujatmiko",
-  "Dewi Lestari",
-  "Budi Santoso",
-  "Rahmat Hidayat",
-  "Siti Rahmawati",
-  "Andi Wijaya",
-  "Faisal Rahman"
+  // =====================================================================
+  // 2. PENGADAAN TANAH NPEA
+  // =====================================================================
+  {
+    id: 'PRG-02',
+    code: 'IS-18-KMSL-01-02',
+    name: 'Pengadaan Tanah NPEA',
+    pic: N,
+    startDate: RKM_PERIOD_START,
+    endDate: RKM_PERIOD_END,
+    rkm: { actual: 35, baseline: 34, status: 'On Progress' },
+    capaian: [
+      {
+        title: 'Relokasi Aset TNI AL',
+        detail:
+          'Telah dilakukan kontrak dengan Notaris/PPAT untuk pembayaran dan sertipikasi tanah pengganti BMN TNI AL serta pendampingan Kejagung dalam proses tukar menukar BMN TNI AL.',
+      },
+      {
+        title: 'Relokasi Aset PT KBN',
+        detail:
+          'Telah dilakukan Serah Sedia Lahan untuk pembangunan jalan pengganti dan proses pekerjaan bangunan pengganti.',
+      },
+      {
+        title: 'Pendaftaran Pensertipikatan Hasil Pengadaan Tanah NPEA',
+        detail:
+          'Telah dilakukan penyerahan hasil pengadaan tanah (parsial) dan dalam proses permohonan pemecahan bidang tanah.',
+      },
+      {
+        title: 'Konsinyasi dan Eksekusi Pengosongan Tanah',
+        detail:
+          'Dari 27 danom yang dikonsinyasi, telah keluar 24 penetapan PN Jakarta Utara dan 3 danom dalam proses sidang penetapan.',
+      },
+    ],
+    isu: [
+      {
+        title: 'Relokasi Aset & Penyelesaian Lahan',
+        detail:
+          'Relokasi TNI AL/KBN dan pengosongan tanah masih bergantung pada koordinasi stakeholder serta penyelesaian aset pengganti.',
+      },
+      {
+        title: 'Pensertipikatan Tanah NPEA',
+        detail:
+          'Proses pemecahan bidang dan sertipikasi masih memerlukan kelengkapan dokumen serta koordinasi dengan BPN.',
+      },
+    ],
+    nextStep: [
+      {
+        title: 'Relokasi Aset TNI AL',
+        detail: 'Koordinasi intensif dengan stakeholder terkait (TNI AL, Kemhan, Kemenkeu, BPN dan Kejagung).',
+      },
+      {
+        title: 'Relokasi Aset PT KBN',
+        detail: 'Monitoring dan evaluasi proses pembangunan bangunan pengganti.',
+      },
+      {
+        title: 'Pendaftaran Pensertipikatan Hasil Pengadaan Tanah NPEA',
+        detail: 'Percepatan pemecahan bidang tanah dan penyiapan kelengkapan dokumen permohonan sertipikasi.',
+      },
+      {
+        title: 'Konsinyasi dan Eksekusi Pengosongan Tanah',
+        detail: 'Monitoring dan koordinasi progres atas sisa 3 danom yang belum keluar penetapan pengadilan.',
+      },
+    ],
+    tasks: [
+      {
+        id: 'TSK-02A',
+        name: 'Relokasi Aset TNI AL/ Tukar Menukar BMN TNI AL (RKM)',
+        type: 'RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.6',
+        description: 'Relokasi aset TNI AL melalui mekanisme tukar menukar BMN.',
+        subTasks: [
+          sub('SUB-02A1', 'BA Kesepakatan Lokasi Tanah dan Bangunan Pengganti', 'DONE', 100, N, '2026-01-05', '2026-01-20', 'BA kesepakatan lokasi telah ditandatangani.'),
+          sub('SUB-02A2', 'Perjanjian Pendahuluan Tukar Menukar/ Penyediaan Aset Pengganti', 'WIP', 10, N, '2026-09-01', END, 'Task baru. Progres 10%.'),
+          sub('SUB-02A3', 'Perolehan Ijin Prinsip Tukar Menukar', 'WIP', 30, N, '2026-02-01', END, 'Koordinasi dengan TNI AL, Kemhan dan Kemenkeu.'),
+          sub('SUB-02A4', 'Perolehan Ijin Pelaksanaan Tukar Menukar', 'NOT_STARTED', 0, N, '2026-11-01', END, 'Menunggu terbitnya ijin prinsip tukar menukar.'),
+          sub('SUB-02A5', 'PKS Tukar Menukar', 'WIP', 25, N, '2026-04-10', END, 'Penyusunan draf PKS bersama TNI AL.'),
+          sub('SUB-02A6', 'Permohonan LO dan/ atau LA dari Kejaksaan', 'WIP', 40, N, '2026-05-01', END, 'Pendampingan Kejagung dalam proses tukar menukar BMN TNI AL.'),
+          sub('SUB-02A7', 'DPPT Tanah Pengganti (Tj Pinang, Pontianak, Merauke)', 'DONE', 100, N, '2026-01-05', '2026-02-15', 'DPPT tanah pengganti telah selesai.'),
+          sub('SUB-02A8', 'Penilaian Tanah Pengganti', 'DONE', 100, N, '2026-02-20', '2026-03-20', 'Penilaian tanah pengganti oleh KJPP telah selesai.'),
+          sub('SUB-02A9', 'Pelaksanaan Pengadaan Tanah Pengganti', 'WIP', 50, N, '2026-04-01', END, 'Kontrak Notaris/PPAT untuk pembayaran dan sertipikasi tanah pengganti BMN TNI AL telah dilakukan.'),
+          sub('SUB-02A10', 'Kesepakatan Bentuk dan Design Bangunan Pengganti', 'WIP', 45, N, '2026-04-15', END, 'Pembahasan desain bangunan pengganti dengan TNI AL.'),
+          sub('SUB-02A11', 'Monitoring Pekerjaan Bangunan Pengganti', 'NOT_STARTED', 0, N, '2026-11-15', END, 'Menunggu kesepakatan desain dan PKS tukar menukar.'),
+          sub('SUB-02A12', 'Serah Terima Aset', 'NOT_STARTED', 0, N, '2026-12-15', END, 'Menunggu penyelesaian bangunan pengganti.'),
+        ],
+      },
+      {
+        id: 'TSK-02B',
+        name: 'Relokasi Aset/ Pemberian Ganti Kerugian Bentuk Lain PT KBN (RKM) (Bidang 22 dan 27)',
+        type: 'RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.6',
+        description: 'Pemberian ganti kerugian dalam bentuk lain kepada PT KBN untuk bidang 22 dan 27.',
+        subTasks: [
+          sub('SUB-02B1', 'PKS Pemberian Ganti Kerugian Dalam Bentuk Lain dengan PT KBN', 'DONE', 100, N, '2026-02-15', '2026-04-10', 'PKS telah ditandatangani.'),
+          sub('SUB-02B2', 'Pembayaran Uang Pengganti', 'DONE', 100, N, '2026-04-12', '2026-05-01', 'Pembayaran uang pengganti telah dilakukan.'),
+          sub('SUB-02B3', 'Monitoring Pekerjaan Bangunan Pengganti', 'WIP', 40, N, '2026-05-05', END, 'Serah Sedia Lahan untuk jalan pengganti telah dilakukan; pekerjaan bangunan pengganti berjalan.'),
+          sub('SUB-02B4', 'Evaluasi PKS dan Rencana Addendum', 'WIP', 30, N, '2026-08-01', END, 'Task baru.'),
+          sub('SUB-02B5', 'Addendum PKS Pemberian Ganti Kerugian Dalam Bentuk Lain dengan PT KBN', 'WIP', 10, N, '2026-09-01', END, 'Task baru.'),
+          sub('SUB-02B6', 'Serah Terima Aset', 'NOT_STARTED', 0, N, '2026-12-01', END, 'Task baru. Menunggu penyelesaian bangunan pengganti.'),
+        ],
+      },
+      {
+        id: 'TSK-02C',
+        name: 'Pendaftaran Pensertipikatan Hasil Pengadaan Tanah NPEA (RKM)',
+        type: 'RKM',
+        stage: 'D. Penyerahan Hasil',
+        taskCode: 'D.1',
+        description: 'Penyerahan hasil dan pensertipikatan bidang tanah hasil pengadaan NPEA.',
+        subTasks: [
+          sub('SUB-02C1', 'Penyerahan Hasil Pengadaan Tanah (parsial)', 'DONE', 100, N, '2026-02-01', '2026-04-15', 'Penyerahan hasil pengadaan tanah parsial telah dilakukan.'),
+          sub('SUB-02C2', 'Pemecahan Bidang Tanah', 'WIP', 30, N, '2026-04-20', END, 'Permohonan pemecahan bidang tanah sedang diproses BPN.'),
+          sub('SUB-02C3', 'Penunjukan Notaris/ PPAT Pengurusan Pensertipikatan', 'NOT_STARTED', 0, N, '2026-11-01', END, 'Menunggu penyelesaian pemecahan bidang.'),
+        ],
+      },
+      {
+        id: 'TSK-02D',
+        name: 'Konsinyasi dan Pengosongan Lahan (RKM)',
+        type: 'RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.5',
+        description: 'Konsinyasi UGR di PN Jakarta Utara dan eksekusi pengosongan lahan.',
+        subTasks: [
+          sub('SUB-02D1', 'Pendaftaran dan Pembayaran UGR Konsinyasi ke PN Jakut', 'DONE', 100, N, '2026-02-20', '2026-04-25', 'UGR konsinyasi telah dititipkan di PN Jakarta Utara.'),
+          sub('SUB-02D2', 'Penetapan Pengadilan terkait Konsinyasi', 'WIP', 98, N, '2026-05-01', END, '24 dari 27 danom telah keluar penetapan PN Jakarta Utara; 3 danom dalam proses sidang.'),
+          sub('SUB-02D3', 'Monitoring Pengambilan UGR Konsinyasi oleh PYB di Pengadilan Jakut', 'WIP', 20, N, '2026-05-10', END, 'Pengambilan UGR oleh Pihak Yang Berhak masih berjalan.'),
+          sub('SUB-02D4', 'Pengosongan Lahan', 'NOT_STARTED', 0, N, '2026-11-15', END, 'Menunggu seluruh penetapan konsinyasi.'),
+        ],
+      },
+      {
+        id: 'TSK-02E',
+        name: 'Perpanjangan Penlok NPEA (Non RKM)',
+        type: 'NON_RKM',
+        stage: 'B. Persiapan',
+        taskCode: 'B.4',
+        description: 'Perpanjangan Penetapan Lokasi (Penlok) NPEA.',
+        subTasks: [
+          sub('SUB-02E1', 'Permohonan Rekomendasi Perpanjangan Penlok ke Kanwil BPN DKI Jakarta', 'DONE', 100, N, '2026-01-10', '2026-02-28', 'Permohonan telah disampaikan.'),
+          sub('SUB-02E2', 'Rekomendasi Perpanjangan Penlok dari Kanwil BPN DKI Jakarta', 'DONE', 100, N, '2026-03-01', '2026-04-15', 'Rekomendasi telah terbit.'),
+          sub('SUB-02E3', 'Permohonan Perpanjangan Penlok ke Gubernur DKI Jakarta', 'DONE', 100, N, '2026-04-16', '2026-05-15', 'Permohonan telah disampaikan.'),
+          sub('SUB-02E4', 'SK Perpanjangan Penlok dari Gubernur DKI Jakarta', 'DONE', 100, N, '2026-05-16', '2026-06-30', 'SK perpanjangan penlok telah terbit.'),
+        ],
+      },
+    ],
+  },
+
+  // =====================================================================
+  // 3. MONITORING DAN ASISTENSI TAHAPAN PENGADAAN TANAH REGIONAL/CABANG
+  // =====================================================================
+  {
+    id: 'PRG-03',
+    code: 'IS-18-KMSL-01-03',
+    name: 'Monitoring dan Asistensi Tahapan Pengadaan Tanah Regional/Cabang',
+    pic: R,
+    startDate: RKM_PERIOD_START,
+    endDate: RKM_PERIOD_END,
+    rkm: { actual: 15, baseline: 15, status: 'On Progress' },
+    capaian: [
+      {
+        title: 'Sorong',
+        detail: 'Telah dilakukan pembahasan monitoring progres pengadaan tanah Sorong dengan Regional 4 dan Cabang Sorong.',
+      },
+      {
+        title: 'Batang',
+        detail: 'Telah dilakukan pembahasan persiapan penunjukan Notaris terkait proses pensertipikatan HPL.',
+      },
+      {
+        title: 'Kuala Tanjung',
+        detail: 'Telah dilakukan pembahasan monitoring progres pengadaan tanah Kuala Tanjung dengan Regional 1.',
+      },
+    ],
+    isu: [
+      {
+        title: 'Pensertipikatan Lahan',
+        detail:
+          'Proses sertipikasi lahan Sorong dan HPL Batang masih memerlukan koordinasi dengan BPN serta penyelesaian administrasi terkait.',
+      },
+      {
+        title: 'Pengadaan Tanah Kuala Tanjung',
+        detail: 'Penyelesaian pengadaan tanah masih menunggu tindak lanjut proses di Kementerian ATR/BPN.',
+      },
+    ],
+    nextStep: [
+      {
+        title: 'Sorong',
+        detail:
+          'Monitoring dan koordinasi tindak lanjut dengan Regional 4 dan Cabang Sorong terkait pensertipikatan lahan reklamasi 5 Ha. SKK sudah diberikan kepada ED Regional 4.',
+      },
+      {
+        title: 'Batang',
+        detail: 'Monitoring dan evaluasi hasil pekerjaan Notaris.',
+      },
+      {
+        title: 'Kuala Tanjung',
+        detail:
+          'Monitoring dan asistensi bersama Regional 1 dan PPK; surat ke direksi PPK untuk percepatan dengan Kanwil BPN setempat dan tindak lanjut tim kantor pusat ke Kementerian ATR/BPN.',
+      },
+    ],
+    tasks: [
+      {
+        id: 'TSK-03A',
+        name: 'Pengadaan Tanah Sorong (RKM)',
+        type: 'RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.5',
+        description: 'Monitoring pengadaan tanah pengembangan Pelabuhan Sorong bersama Regional 4.',
+        subTasks: [
+          sub('SUB-03A1', 'Pemberian Ganti Kerugian Pengadaan Tanah Pengembangan Pelabuhan Sorong Tahap III', 'WIP', 60, R, '2026-04-01', END, 'Koordinasi dengan Regional 4 dan Cabang Sorong.'),
+          sub('SUB-03A2', 'Pembongkaran Bangunan yang Telah Diberikan Ganti Kerugian', 'WIP', 30, R, '2026-05-01', END, ''),
+          sub('SUB-03A3', 'Penyelesaian Objek Pengadaan Tanah BMN', 'WIP', 20, R, '2026-05-15', END, ''),
+          sub('SUB-03A4', 'Sertipikasi Lahan Hasil Reklamasi', 'WIP', 10, R, '2026-06-01', END, 'Pensertipikatan lahan reklamasi 5 Ha; SKK telah diberikan kepada ED Regional 4.'),
+        ],
+      },
+      {
+        id: 'TSK-03B',
+        name: 'Pengadaan Tanah Batang (RKM)',
+        type: 'RKM',
+        stage: 'D. Penyerahan Hasil',
+        taskCode: 'D.1',
+        description: 'Monitoring pengadaan tanah dan pensertipikatan HPL Batang.',
+        subTasks: [
+          sub('SUB-03B1', 'Pemberian Ganti Kerugian', 'DONE', 100, R, '2026-01-15', '2026-03-12', 'Ganti kerugian telah diselesaikan.'),
+          sub('SUB-03B2', 'Balik Nama dan Pelepasan HPL PTPN I', 'DONE', 100, R, '2026-03-01', '2026-04-20', 'Pelepasan HPL PTPN I telah selesai.'),
+          sub('SUB-03B3', 'Pemecahan Bidang Tanah HPL PTPN', 'WIP', 60, R, '2026-05-01', END, 'Progres pemecahan bidang 60%.'),
+          sub('SUB-03B4', 'Penunjukan Notaris/ PPAT Pengurusan Pensertipikatan', 'DONE', 100, R, '2026-05-15', '2026-08-10', 'Notaris/PPAT telah ditunjuk; monitoring dan evaluasi hasil pekerjaan Notaris.'),
+          sub('SUB-03B5', 'Penentuan HPL (Kementerian Perhubungan/ Pelindo)', 'WIP', 30, R, '2026-08-01', END, 'Task baru. Dalam proses.'),
+        ],
+      },
+      {
+        id: 'TSK-03C',
+        name: 'Pengadaan Tanah Kuala Tanjung (RKM)',
+        type: 'RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.7',
+        description: 'Monitoring dan asistensi pengadaan tanah Kuala Tanjung bersama Regional 1 dan PPK.',
+        subTasks: [
+          sub('SUB-03C1', 'PPK: Penyelesaian Outstanding Tahap Pelaksanaan Pengadaan Tanah', 'WIP', 50, R, '2026-04-01', END, 'Menunggu tindak lanjut di Kementerian ATR/BPN.'),
+          sub('SUB-03C2', 'PPK: Pengurusan KKPR dan Pensertipikatan', 'WIP', 30, R, '2026-05-15', END, 'Surat ke direksi PPK untuk percepatan dengan Kanwil BPN setempat.'),
+          sub('SUB-03C3', 'PMT: Penyelesaian Outstanding Tahap Pelaksanaan Pengadaan Tanah', 'WIP', 40, R, '2026-04-10', END, ''),
+          sub('SUB-03C4', 'PMT: Pengurusan KKPR dan Pensertipikatan', 'WIP', 20, R, '2026-05-20', END, ''),
+        ],
+      },
+      {
+        id: 'TSK-03D',
+        name: 'Pengadaan Tanah Akses Jalan MNP (Non RKM)',
+        type: 'NON_RKM',
+        stage: 'C. Pelaksanaan',
+        taskCode: 'C.5',
+        description: 'Pengadaan tanah akses jalan Makassar New Port (Regional 4).',
+        subTasks: [
+          sub('SUB-03D1', 'Penyampaian Mekanisme Pemberian Ganti Kerugian a.n. Ahli Waris Ahmad Dg. Mangawing', 'DONE', 100, R, '2026-01-10', '2026-02-15', 'Mekanisme pemberian ganti kerugian telah disampaikan.'),
+          sub('SUB-03D2', 'Pembayaran Ganti Kerugian a.n. Ahli Waris Ahmad Dg. Mangawing Tahap I', 'WIP', 75, R, '2026-03-01', END, ''),
+          sub('SUB-03D3', 'Pengajuan Anggaran Investasi Pengadaan Tanah oleh Reg 4', 'WIP', 50, R, '2026-04-15', END, ''),
+          sub('SUB-03D4', 'Pembayaran Ganti Kerugian a.n. Ahli Waris Ahmad Dg. Mangawing Tahap II', 'WIP', 10, R, '2026-05-20', END, ''),
+        ],
+      },
+    ],
+  },
 ];
