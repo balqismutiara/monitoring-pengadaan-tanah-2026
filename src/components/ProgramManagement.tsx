@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { normalizeSubTaskState, toStatusCode } from "../utils";
 import {
   Search,
   RotateCcw,
@@ -38,13 +39,14 @@ type Tahapan =
   | "Penyerahan Hasil"
   | "Pensertipikatan";
 
-type StatusTahapan =
-  | "Belum Mulai"
-  | "Proses"
-  | "Selesai"
-  | "Tertunda"
-  | "WIP"
-  | "Delayed";
+type StatusTahapan = "Belum Mulai" | "Proses" | "Selesai" | "Tertunda";
+
+/** Target navigasi dari notifikasi. */
+export interface ManagementFocus {
+  programId?: string;
+  taskId?: string;
+  subTaskId?: string;
+}
 
 type DetailTab = "detail" | "subtask" | "dokumen";
 
@@ -60,8 +62,10 @@ type ManagedDocument = {
 
 interface ProgramManagementProps {
   programs?: any[];
-  setPrograms?: React.Dispatch<React.SetStateAction<any[]>>;
+  setPrograms?: (next: any[]) => void;
   onViewDetail?: (payload: any) => void;
+  focus?: ManagementFocus | null;
+  onFocusHandled?: () => void;
 }
 
 /* =========================================================
@@ -81,10 +85,13 @@ const ITEMS_PER_PAGE = 8;
 const STATUS_OPTIONS: StatusTahapan[] = [
   "Belum Mulai",
   "Proses",
-  "WIP",
   "Selesai",
   "Tertunda",
 ];
+
+/** Baris dianggap selesai (tidak dimonitor lagi) bila progres 100% atau berstatus Selesai. */
+const isRowDone = (row: any) =>
+  Number(row.progress) >= 100 || row.status === "Selesai";
 
 const DEFAULT_DOCUMENTS = [
   "KTP pihak yang berhak",
@@ -215,7 +222,6 @@ const normalizeStatus = (value?: string): StatusTahapan => {
 
   if (text === "DONE" || text === "SELESAI") return "Selesai";
   if (text === "DELAYED" || text === "TERTUNDA") return "Tertunda";
-  if (text === "WIP") return "WIP";
   if (text === "NOT_STARTED" || text === "BELUM MULAI")
     return "Belum Mulai";
 
@@ -287,7 +293,10 @@ const flattenPrograms = (programs: any[]) => {
       */
       if (!Array.isArray(subTasks) || subTasks.length === 0) {
         rows.push({
-          id: `${programIndex}-${taskIndex}`,
+          id: getText(task.id, `${programIndex}-${taskIndex}`),
+          programId: getText(program.id, String(programIndex)),
+          taskId: getText(task.id, String(taskIndex)),
+          subTaskId: "",
           programName,
           taskName,
           subTaskName: "-",
@@ -314,6 +323,7 @@ const flattenPrograms = (programs: any[]) => {
           ),
 
           target: getText(
+            task.dueDate,
             task.targetDate,
             task.endDate,
             task.tglTarget
@@ -356,7 +366,12 @@ const flattenPrograms = (programs: any[]) => {
           customId: string,
           fallbackName: string
         ) => ({
-          id: customId,
+          id: getText(item.id, customId),
+          programId: getText(program.id, String(programIndex)),
+          taskId: getText(task.id, String(taskIndex)),
+          subTaskId: getText(item.id, customId),
+          startDate: getText(item.startDate, subTask.startDate),
+          notes: getText(item.notes, subTask.notes),
 
           programName,
 
@@ -376,6 +391,7 @@ const flattenPrograms = (programs: any[]) => {
               item.stage,
               subTask.tahapan,
               task.tahapan,
+              task.stage,
               program.tahapan
             )
           ),
@@ -405,9 +421,11 @@ const flattenPrograms = (programs: any[]) => {
           ),
 
           target: getText(
+            item.dueDate,
             item.targetDate,
             item.endDate,
             item.tglTarget,
+            subTask.dueDate,
             subTask.targetDate,
             subTask.endDate
           ),
@@ -469,8 +487,12 @@ const flattenPrograms = (programs: any[]) => {
 
 export function ProgramManagement({
   programs = [],
+  setPrograms,
   onViewDetail,
+  focus,
+  onFocusHandled,
 }: ProgramManagementProps) {
+  const [showCompleted, setShowCompleted] = useState(false);
   const [selectedProgram, setSelectedProgram] =
     useState("ALL");
 
@@ -533,6 +555,12 @@ export function ProgramManagement({
     const keyword = search.trim().toLowerCase();
 
     return rows.filter((row) => {
+      // Hanya pekerjaan yang masih berjalan yang dimonitor.
+      // Item selesai tetap bisa dilihat lewat tombol "Tampilkan yang selesai"
+      // atau dengan memilih filter status "Selesai".
+      const visibleByProgress =
+        showCompleted || selectedStatus === "Selesai" || !isRowDone(row);
+
       const matchProgram =
         selectedProgram === "ALL" ||
         row.programName === selectedProgram;
@@ -553,6 +581,7 @@ export function ProgramManagement({
         row.pic.toLowerCase().includes(keyword);
 
       return (
+        visibleByProgress &&
         matchProgram &&
         matchTahapan &&
         matchStatus &&
@@ -565,7 +594,58 @@ export function ProgramManagement({
     selectedTahapan,
     selectedStatus,
     search,
+    showCompleted,
   ]);
+
+  const completedCount = useMemo(
+    () => rows.filter(isRowDone).length,
+    [rows]
+  );
+
+  const completedPrograms = useMemo(() => {
+    const byProgram = new Map<string, { total: number; done: number }>();
+    rows.forEach((row) => {
+      const entry = byProgram.get(row.programName) || { total: 0, done: 0 };
+      entry.total += 1;
+      if (isRowDone(row)) entry.done += 1;
+      byProgram.set(row.programName, entry);
+    });
+    return Array.from(byProgram.entries())
+      .filter(([, value]) => value.total > 0 && value.done === value.total)
+      .map(([name]) => name);
+  }, [rows]);
+
+  /* =======================================================
+     NAVIGASI DARI NOTIFIKASI
+  ======================================================= */
+
+  useEffect(() => {
+    if (!focus) return;
+
+    const target =
+      (focus.subTaskId &&
+        rows.find((row) => row.subTaskId === focus.subTaskId)) ||
+      (focus.taskId &&
+        rows.find((row) => row.taskId === focus.taskId && !isRowDone(row))) ||
+      (focus.taskId && rows.find((row) => row.taskId === focus.taskId)) ||
+      null;
+
+    if (target) {
+      if (isRowDone(target)) setShowCompleted(true);
+      setSelectedProgram(target.programName);
+      setSelectedTahapan("ALL");
+      setSelectedStatus("ALL");
+      setSearch("");
+      handleOpenDetail(target);
+      if (!focus.subTaskId) setDetailTab("subtask");
+    } else if (focus.programId) {
+      const programRow = rows.find((row) => row.programId === focus.programId);
+      if (programRow) setSelectedProgram(programRow.programName);
+    }
+
+    onFocusHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus]);
 
   /* =======================================================
      PAGINATION
@@ -640,19 +720,81 @@ export function ProgramManagement({
   const saveDetailEdit = () => {
     if (!selectedDetail) return;
 
+    // Selaraskan status & progres (Selesai <-> 100%).
+    const normalized = normalizeSubTaskState({
+      status: toStatusCode(editForm.status),
+      progress: Number(editForm.progress || 0),
+    });
+
     const nextOverride = {
       programName: editForm.programName,
       taskName: editForm.taskName,
       subTaskName: editForm.subTaskName,
       tahapan: editForm.tahapan,
       pic: editForm.pic,
-      progress: Math.min(
-        100,
-        Math.max(0, Number(editForm.progress || 0))
-      ),
-      status: editForm.status,
+      progress: normalized.progress,
+      status: normalizeStatus(normalized.status),
       target: editForm.target,
     };
+
+    if (setPrograms) {
+      // Tulis langsung ke data pusat -> Master Data, Dashboard, Laporan,
+      // dan database ikut terbarui.
+      const stageLabel: Record<string, string> = {
+        Perencanaan: "A. Perencanaan",
+        Persiapan: "B. Persiapan",
+        Pelaksanaan: "C. Pelaksanaan",
+        "Penyerahan Hasil": "D. Penyerahan Hasil",
+        Pensertipikatan: "E. Pensertipikatan",
+      };
+
+      const nextPrograms = programs.map((program: any) => {
+        if (String(program.id) !== String(selectedDetail.programId)) return program;
+
+        return {
+          ...program,
+          name: nextOverride.programName?.trim() || program.name,
+          tasks: (program.tasks || []).map((task: any) => {
+            if (String(task.id) !== String(selectedDetail.taskId)) return task;
+
+            const stageChanged =
+              normalizeTahapan(task.stage) !== nextOverride.tahapan;
+
+            return {
+              ...task,
+              name: nextOverride.taskName?.trim() || task.name,
+              stage: stageChanged
+                ? stageLabel[nextOverride.tahapan] || nextOverride.tahapan
+                : task.stage,
+              subTasks: (task.subTasks || []).map((subTask: any) =>
+                String(subTask.id) !== String(selectedDetail.subTaskId)
+                  ? subTask
+                  : {
+                      ...subTask,
+                      name: nextOverride.subTaskName?.trim() || subTask.name,
+                      pic: nextOverride.pic,
+                      progress: normalized.progress,
+                      status: normalized.status,
+                      dueDate: nextOverride.target || subTask.dueDate,
+                      estimatedSchedule:
+                        nextOverride.target && nextOverride.target !== subTask.dueDate
+                          ? false
+                          : subTask.estimatedSchedule,
+                    }
+              ),
+            };
+          }),
+        };
+      });
+
+      setPrograms(nextPrograms);
+      setSelectedDetail((prev: any) =>
+        prev ? { ...prev, ...nextOverride } : prev
+      );
+      setEditForm((prev: any) => ({ ...prev, ...nextOverride }));
+      setEditMode(false);
+      return;
+    }
 
     setRowOverrides((prev) => ({
       ...prev,
@@ -672,8 +814,8 @@ export function ProgramManagement({
   const taskRows = selectedDetail
     ? rows.filter(
         (row) =>
-          row.programName === selectedDetail.programName &&
-          row.taskName === selectedDetail.taskName
+          row.programId === selectedDetail.programId &&
+          row.taskId === selectedDetail.taskId
       )
     : [];
 
@@ -919,10 +1061,6 @@ export function ProgramManagement({
                   label: "Proses",
                 },
                 {
-                  value: "WIP",
-                  label: "WIP",
-                },
-                {
                   value: "Selesai",
                   label: "Selesai",
                 },
@@ -978,9 +1116,35 @@ export function ProgramManagement({
               </h2>
 
               <p className="mt-1 text-[11px] text-[#788aa4]">
-                Menampilkan data berdasarkan tahapan yang dipilih.
+                {showCompleted
+                  ? "Menampilkan seluruh pekerjaan, termasuk yang sudah selesai."
+                  : `Hanya pekerjaan yang masih berjalan. ${completedCount} sub task selesai (100%) disembunyikan.`}
               </p>
+              {!showCompleted && completedPrograms.length > 0 && (
+                <p className="mt-1 text-[10.5px] font-semibold text-emerald-700">
+                  Program selesai 100%: {completedPrograms.join(", ")}
+                </p>
+              )}
             </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCompleted((value) => !value);
+                setPage(1);
+              }}
+              className={`inline-flex h-[38px] items-center justify-center gap-2 rounded-xl border px-4 text-[12px] font-semibold transition ${
+                showCompleted
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : "border-[#d8e1ed] bg-white text-[#203859] hover:bg-[#f8fafc]"
+              }`}
+            >
+              <CheckCircle2 size={15} />
+              {showCompleted
+                ? "Sembunyikan yang selesai"
+                : `Tampilkan yang selesai (${completedCount})`}
+            </button>
 
             <button
               onClick={exportExcel}
@@ -989,6 +1153,7 @@ export function ProgramManagement({
               <Download size={15} />
               Export Excel
             </button>
+            </div>
           </header>
 
           <div className="overflow-x-auto">

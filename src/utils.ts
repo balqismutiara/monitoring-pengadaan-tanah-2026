@@ -171,3 +171,46 @@ export function calculatePicProgress(programs: Program[]): PICProgress[] {
     })
     .sort((a, b) => b.progress - a.progress);
 }
+
+/** Ubah label Indonesia / kode apa pun menjadi kode status standar. */
+export function toStatusCode(value?: string): SubTaskStatus {
+  const text = String(value || '').trim().toUpperCase();
+  if (text === 'DONE' || text === 'SELESAI') return 'DONE';
+  if (text === 'DELAYED' || text === 'TERTUNDA') return 'DELAYED';
+  if (text === 'NOT_STARTED' || text === 'BELUM MULAI' || text === 'BELUM_MULAI') return 'NOT_STARTED';
+  return 'WIP';
+}
+
+/** Label Bahasa Indonesia untuk kode status. */
+export function statusLabel(value?: string): string {
+  return STATUS_LABELS[toStatusCode(value)];
+}
+
+/**
+ * Aturan konsistensi status & progres sub task:
+ * - Selesai  -> progres 100
+ * - progres 100 -> Selesai
+ * - Belum Mulai dengan progres > 0 -> Proses
+ * - Proses dengan progres 0 tetap Proses (sudah dimulai)
+ */
+export function normalizeSubTaskState<T extends { status?: string; progress?: number }>(subTask: T): T {
+  const status = toStatusCode(subTask.status);
+  const progress = Math.min(100, Math.max(0, Number(subTask.progress) || 0));
+  if (status === 'DONE' || progress >= 100) return { ...subTask, status: 'DONE', progress: 100 };
+  if (status === 'NOT_STARTED' && progress > 0) return { ...subTask, status: 'WIP', progress };
+  return { ...subTask, status, progress };
+}
+
+export function normalizePrograms(programs: Program[]): Program[] {
+  return programs.map(program => ({
+    ...program,
+    tasks: (program.tasks || []).map(task => ({
+      ...task,
+      subTasks: (task.subTasks || []).map(subTask => normalizeSubTaskState(subTask)),
+    })),
+  }));
+}
+
+/** Sub task dianggap selesai bila status Selesai atau progres 100%. */
+export const isSubTaskDone = (subTask: { status?: string; progress?: number }) =>
+  toStatusCode(subTask.status) === 'DONE' || Number(subTask.progress) >= 100;

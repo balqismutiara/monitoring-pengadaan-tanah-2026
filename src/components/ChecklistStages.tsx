@@ -1,4 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChecklistEntry,
+  ChecklistState,
+  DEFAULT_STAGE_DOCUMENTS,
+  STAGES,
+  StageName,
+} from '../checklist';
 import {
   CheckCircle2,
   ChevronRight,
@@ -17,14 +24,14 @@ import {
 
 interface ChecklistStagesProps {
   programs?: any[];
+  /** Status dokumen per program (tersimpan di database). */
+  checklist?: ChecklistState;
+  onChecklistChange?: (programId: string, documentKey: string, entry: ChecklistEntry) => void;
+  /** Program yang langsung dipilih (mis. dari klik notifikasi). */
+  focusProgramId?: string | null;
+  onFocusHandled?: () => void;
+  backendOnline?: boolean;
 }
-
-type StageName =
-  | 'Perencanaan'
-  | 'Persiapan'
-  | 'Pelaksanaan'
-  | 'Penyerahan Hasil'
-  | 'Pensertipikatan';
 
 interface ChecklistItem {
   id: string;
@@ -36,56 +43,6 @@ interface ChecklistItem {
   fileName?: string;
   fileUrl?: string;
 }
-
-const STAGES: StageName[] = [
-  'Perencanaan',
-  'Persiapan',
-  'Pelaksanaan',
-  'Penyerahan Hasil',
-  'Pensertipikatan',
-];
-
-const DEFAULT_STAGE_DOCUMENTS: Record<StageName, string[]> = {
-  Perencanaan: [
-    'Dokumen perencanaan pengadaan tanah',
-    'Data awal lokasi / kebutuhan lahan',
-    'Peta rencana lokasi',
-    'Dokumen kesesuaian tata ruang',
-    'Rencana jadwal pelaksanaan',
-  ],
-  Persiapan: [
-    'Data awal pihak yang berhak',
-    'Daftar objek pengadaan tanah',
-    'Penetapan lokasi',
-    'Pengumuman penetapan lokasi',
-    'Surat pemberitahuan kepada pihak terkait',
-    'Surat undangan musyawarah',
-    'Berita acara sosialisasi rencana kegiatan',
-  ],
-  Pelaksanaan: [
-    'Daftar nominatif pihak yang berhak',
-    'Peta bidang hasil pengukuran',
-    'Dokumen penilaian / appraisal',
-    'Berita acara musyawarah',
-    'Dokumen pembayaran ganti kerugian',
-    'Dokumen pelepasan hak',
-    'Berita acara penyerahan hasil',
-  ],
-  'Penyerahan Hasil': [
-    'Berita acara penyerahan hasil',
-    'Daftar bidang yang telah diserahkan',
-    'Dokumen serah terima aset',
-    'Dokumen penyelesaian administrasi',
-  ],
-  Pensertipikatan: [
-    'Permohonan pensertipikatan',
-    'Peta bidang / surat ukur',
-    'Dokumen alas hak',
-    'Surat pelepasan hak',
-    'Berita acara pengukuran',
-    'Dokumen penerbitan sertipikat',
-  ],
-};
 
 const getText = (...values: any[]) => {
   const found = values.find(
@@ -327,6 +284,11 @@ const buildChecklistForStage = (
 
 export function ChecklistStages({
   programs = [],
+  checklist = {},
+  onChecklistChange,
+  focusProgramId,
+  onFocusHandled,
+  backendOnline = false,
 }: ChecklistStagesProps) {
   const [selectedProgramId, setSelectedProgramId] = useState(
     programs?.[0]?.id ?? 'ALL',
@@ -334,8 +296,9 @@ export function ChecklistStages({
   const [selectedStage, setSelectedStage] =
     useState<StageName>('Persiapan');
 
-  const [localOverrides, setLocalOverrides] = useState<
-    Record<string, Partial<ChecklistItem>>
+  // Perubahan sementara bila tidak ada handler pusat (fallback).
+  const [sessionOverrides, setSessionOverrides] = useState<
+    Record<string, Record<string, Partial<ChecklistItem>>>
   >({});
 
   const [previewItem, setPreviewItem] =
@@ -346,6 +309,13 @@ export function ChecklistStages({
     null,
   );
 
+  useEffect(() => {
+    if (!focusProgramId) return;
+    setSelectedProgramId(focusProgramId);
+    onFocusHandled?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusProgramId]);
+
   const selectedProgram = useMemo(() => {
     if (!programs.length) return null;
 
@@ -355,6 +325,14 @@ export function ChecklistStages({
       ) ?? programs[0]
     );
   }, [programs, selectedProgramId]);
+
+  const localOverrides: Record<string, Partial<ChecklistItem>> = useMemo(() => {
+    const programId = String(selectedProgram?.id ?? '');
+    return {
+      ...((checklist[programId] || {}) as Record<string, Partial<ChecklistItem>>),
+      ...(sessionOverrides[programId] || {}),
+    };
+  }, [checklist, sessionOverrides, selectedProgram]);
 
   const stageSummaries = useMemo(() => {
     if (!selectedProgram) {
@@ -439,6 +417,36 @@ export function ChecklistStages({
     },
   ];
 
+  const setEntry = (itemId: string, entry: ChecklistEntry) => {
+    const programId = String(selectedProgram?.id ?? '');
+    if (onChecklistChange) {
+      onChecklistChange(programId, itemId, entry);
+    } else {
+      setSessionOverrides((previous) => ({
+        ...previous,
+        [programId]: { ...(previous[programId] || {}), [itemId]: entry },
+      }));
+    }
+  };
+
+  const markAvailable = (item: ChecklistItem) =>
+    setEntry(item.id, {
+      status: 'AVAILABLE',
+      uploadDate: new Date().toISOString(),
+      pic: getText(selectedProgram?.pic, '-'),
+      notes: 'Ditandai tersedia (dokumen fisik)',
+    });
+
+  const markMissing = (item: ChecklistItem) =>
+    setEntry(item.id, {
+      status: item.required ? 'MISSING' : 'OPTIONAL',
+      uploadDate: '',
+      pic: '-',
+      fileName: '',
+      fileUrl: '',
+      notes: '',
+    });
+
   const openUpload = (itemId: string) => {
     setUploadTargetId(itemId);
     fileInputRef.current?.click();
@@ -457,15 +465,23 @@ export function ChecklistStages({
     const fileUrl = URL.createObjectURL(file);
     const today = new Date().toISOString();
 
-    setLocalOverrides((previous) => ({
-      ...previous,
-      [uploadTargetId]: {
-        status: 'AVAILABLE',
-        fileName: file.name,
-        fileUrl,
-        uploadDate: today,
-      },
-    }));
+    const entry: ChecklistEntry = {
+      status: 'AVAILABLE',
+      fileName: file.name,
+      fileUrl,
+      uploadDate: today,
+      pic: getText(selectedProgram?.pic, '-'),
+    };
+    const programId = String(selectedProgram?.id ?? '');
+
+    if (onChecklistChange) {
+      onChecklistChange(programId, uploadTargetId, entry);
+    } else {
+      setSessionOverrides((previous) => ({
+        ...previous,
+        [programId]: { ...(previous[programId] || {}), [uploadTargetId]: entry },
+      }));
+    }
 
     setUploadTargetId(null);
     event.target.value = '';
@@ -661,16 +677,36 @@ export function ChecklistStages({
                               >
                                 <Download size={13} />
                               </button>
+
+                              <button
+                                type="button"
+                                onClick={() => markMissing(item)}
+                                className="inline-flex h-7 items-center rounded-lg border border-slate-200 bg-white px-2 text-[8px] font-semibold text-slate-500 hover:bg-slate-50"
+                                title="Tandai dokumen belum ada"
+                              >
+                                Batalkan
+                              </button>
                             </>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => openUpload(item.id)}
-                              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-[8px] font-semibold text-blue-700 hover:bg-blue-100"
-                            >
-                              <Upload size={12} />
-                              Upload
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openUpload(item.id)}
+                                className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-[8px] font-semibold text-blue-700 hover:bg-blue-100"
+                              >
+                                <Upload size={12} />
+                                Upload
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => markAvailable(item)}
+                                className="inline-flex h-7 items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[8px] font-semibold text-emerald-700 hover:bg-emerald-100"
+                                title="Tandai dokumen sudah ada tanpa upload file"
+                              >
+                                <CheckCircle2 size={12} />
+                                Tandai Ada
+                              </button>
+                            </>
                           )}
                         </div>
                       </TableCell>
@@ -759,9 +795,9 @@ export function ChecklistStages({
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
 
                 <p className="text-[8px] leading-4 text-slate-500">
-                  Status checklist saat ini hanya simulasi frontend.
-                  Integrasi permanen dengan Arsip Dokumen akan dilakukan
-                  saat backend dan database disambungkan.
+                  {backendOnline
+                    ? 'Status checklist tersimpan di database (MySQL). Tahapan Perencanaan s.d. Penyerahan Hasil telah ditandai lengkap sesuai kondisi eksisting.'
+                    : 'Mode lokal: database belum terhubung, perubahan checklist hanya tersimpan selama sesi ini.'}
                 </p>
               </div>
             </div>

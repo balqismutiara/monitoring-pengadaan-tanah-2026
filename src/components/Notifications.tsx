@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CURRENT_DATE_STR } from '../utils';
+import { CURRENT_DATE_STR, statusLabel } from '../utils';
 import {
   AlertTriangle,
   Bell,
@@ -40,6 +40,12 @@ export type NotificationSeverity =
   | 'info'
   | 'success';
 
+export interface NotificationTarget {
+  programId?: string;
+  taskId?: string;
+  subTaskId?: string;
+}
+
 export interface AppNotification {
   id: string;
   type: NotificationType;
@@ -52,6 +58,8 @@ export interface AppNotification {
   createdAt: string;
   targetTab: NotificationTargetTab;
   targetLabel: string;
+  /** Rujukan item yang dibuka saat notifikasi diklik. */
+  target?: NotificationTarget;
   read: boolean;
   important: boolean;
 }
@@ -177,11 +185,13 @@ const generateDocumentNotifications = ({
   programName,
   taskName,
   sourceId,
+  target,
 }: {
   source: any;
   programName: string;
   taskName?: string;
   sourceId: string;
+  target?: NotificationTarget;
 }): AppNotification[] => {
   const documents = getDocuments(source);
 
@@ -212,6 +222,7 @@ const generateDocumentNotifications = ({
       createdAt: NOTIFICATION_REFERENCE_DATE,
       targetTab: 'checklist',
       targetLabel: 'Buka Checklist Tahapan',
+      target,
       read: false,
       important: true,
     },
@@ -243,6 +254,7 @@ export function buildNotifications(
         source: program,
         programName,
         sourceId: programId,
+        target: { programId },
       }),
     );
 
@@ -270,6 +282,7 @@ export function buildNotifications(
           programName,
           taskName,
           sourceId: `${programId}-${taskId}`,
+          target: { programId, taskId },
         }),
       );
 
@@ -311,6 +324,7 @@ export function buildNotifications(
             programName,
             taskName,
             sourceId: `${programId}-${taskId}-${subTaskId}`,
+            target: { programId, taskId, subTaskId },
           }),
         );
 
@@ -346,6 +360,7 @@ export function buildNotifications(
               ),
             createdAt: NOTIFICATION_REFERENCE_DATE,
             targetTab: 'management',
+            target: { programId, taskId, subTaskId },
             targetLabel: 'Buka Manajemen Monitoring',
             read: false,
             important: true,
@@ -378,6 +393,7 @@ export function buildNotifications(
                 'Pastikan progres pekerjaan dan kebutuhan dokumen telah diperbarui.',
               createdAt: NOTIFICATION_REFERENCE_DATE,
               targetTab: 'management',
+              target: { programId, taskId, subTaskId },
               targetLabel: 'Buka Detail Pekerjaan',
               read: false,
               important: true,
@@ -400,7 +416,7 @@ export function buildNotifications(
             title: 'Status diperbarui',
             programName,
             taskName,
-            description: `${subTaskName} · Status ${status}`,
+            description: `${subTaskName} · Status ${statusLabel(status)}`,
             detail: `PIC: ${getText(
               subTask?.pic,
               subTask?.PIC,
@@ -408,6 +424,7 @@ export function buildNotifications(
             )}`,
             createdAt: toIsoAtNoon(updatedAt),
             targetTab: 'management',
+            target: { programId, taskId, subTaskId },
             targetLabel: 'Buka Pekerjaan',
             read: true,
             important: false,
@@ -423,7 +440,7 @@ export function buildNotifications(
             title: 'Pekerjaan selesai',
             programName,
             taskName,
-            description: `${subTaskName} · Status DONE`,
+            description: `${subTaskName} · Status Selesai`,
             detail:
               'Pekerjaan telah berstatus selesai pada data monitoring.',
             createdAt: toIsoAtNoon(
@@ -434,6 +451,7 @@ export function buildNotifications(
               ),
             ),
             targetTab: 'management',
+            target: { programId, taskId, subTaskId },
             targetLabel: 'Lihat Pekerjaan',
             read: true,
             important: false,

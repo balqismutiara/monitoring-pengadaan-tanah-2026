@@ -32,7 +32,7 @@ import {
 import * as XLSX from 'xlsx';
 import { Program } from '../types';
 import { RKM_SUMMARY } from '../data';
-import { CURRENT_DATE_STR } from '../utils';
+import { CURRENT_DATE_STR, statusLabel } from '../utils';
 import {
   buildReport,
   formatDateId,
@@ -817,7 +817,7 @@ export default function ReportsAnalytics({ programs = [] }: ReportsAnalyticsProp
         'Task List': row.taskName,
         'Sub Task': row.subTaskName,
         PIC: row.pic,
-        Status: row.status,
+        Status: statusLabel(row.status),
         'Progress Aktual': row.progress,
         'Target Saat Ini': row.plannedProgress,
         Deviasi: row.deviation,

@@ -2,6 +2,15 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { google } from "googleapis";
+import { isDatabaseReady, DB_NAME } from "./db.js";
+import {
+  getActivity,
+  getSnapshot,
+  saveChecklistAll,
+  saveChecklistEntry,
+  savePrograms,
+  updateSubTask,
+} from "./repository.js";
 
 dotenv.config({ path: ".env.local" });
 
@@ -17,7 +26,17 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
+
+// Bungkus handler async agar error dikirim sebagai JSON.
+const handle = fn => async (req, res) => {
+  try {
+    await fn(req, res);
+  } catch (error) {
+    console.error(`[API] ${req.method} ${req.path}:`, error.message);
+    res.status(error.status || 500).json({ success: false, message: error.message });
+  }
+};
 
 // ======================================================
 // GOOGLE OAUTH CONFIGURATION
@@ -33,12 +52,62 @@ const oauth2Client = new google.auth.OAuth2(
 // TEST BACKEND
 // ======================================================
 
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
+  const db = await isDatabaseReady();
   res.json({
     success: true,
     message: "Backend Monitoring Pengadaan Tanah aktif",
+    database: db.ready,
+    databaseName: DB_NAME,
+    programs: db.programs ?? 0,
+    databaseError: db.ready ? undefined : db.error,
   });
 });
+
+// ======================================================
+// DATA MONITORING (MySQL)
+// ======================================================
+
+// Seluruh data: program -> task -> sub task, checklist, ringkasan RKM.
+app.get("/api/data", handle(async (req, res) => {
+  res.json({ success: true, data: await getSnapshot() });
+}));
+
+app.get("/api/programs", handle(async (req, res) => {
+  const snapshot = await getSnapshot();
+  res.json({ success: true, data: snapshot.programs });
+}));
+
+// Simpan seluruh pohon program (dipanggil otomatis oleh frontend setiap ada perubahan).
+app.put("/api/programs", handle(async (req, res) => {
+  const { programs, changedBy } = req.body || {};
+  const result = await savePrograms(programs, changedBy || "Pengguna");
+  res.json({ success: true, updatedAt: new Date().toISOString(), ...result });
+}));
+
+// Perbarui satu sub task, mis. dari integrasi lain:
+// PATCH /api/sub-tasks/SUB-01C3  { "progress": 100 }  -> otomatis berstatus Selesai
+app.patch("/api/sub-tasks/:id", handle(async (req, res) => {
+  const { changedBy, ...patch } = req.body || {};
+  res.json({ success: true, data: await updateSubTask(req.params.id, patch, changedBy || "Pengguna") });
+}));
+
+// Checklist dokumen per tahapan
+app.put("/api/checklist", handle(async (req, res) => {
+  const { checklist, changedBy } = req.body || {};
+  res.json({ success: true, ...(await saveChecklistAll(checklist, changedBy || "Pengguna")) });
+}));
+
+app.put("/api/checklist/:programId/:documentKey", handle(async (req, res) => {
+  const { changedBy, ...entry } = req.body || {};
+  await saveChecklistEntry(req.params.programId, req.params.documentKey, entry, changedBy || "Pengguna");
+  res.json({ success: true });
+}));
+
+// Riwayat perubahan
+app.get("/api/activity", handle(async (req, res) => {
+  res.json({ success: true, data: await getActivity(req.query.limit) });
+}));
 
 // ======================================================
 // GOOGLE LOGIN / CONNECT DRIVE

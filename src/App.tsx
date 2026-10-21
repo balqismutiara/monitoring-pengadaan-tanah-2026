@@ -1,6 +1,21 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { INITIAL_PROGRAMS } from './data';
-import { calculateDashboardStats } from './utils';
+import { calculateDashboardStats, normalizePrograms } from './utils';
+import { Program } from './types';
+import {
+  buildInitialChecklist,
+  ChecklistEntry,
+  ChecklistState,
+  mergeChecklistDefaults,
+} from './checklist';
+import {
+  checkBackend,
+  fetchSnapshot,
+  saveChecklistAll,
+  saveChecklistEntry,
+  savePrograms,
+} from './api';
+import type { ManagementFocus } from './components/ProgramManagement';
 import { MetricCard } from './components/MetricCard';
 import { MonitoringDashboard } from './components/MonitoringDashboard';
 import { MasterData } from './components/MasterData';
@@ -37,7 +52,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  Cloud,
+  CloudOff,
   FileCheck,
+  Loader2,
   Database,
   FolderKanban,
   FolderOpen,
@@ -89,7 +107,39 @@ export default function App() {
   const [currentUser, setCurrentUser] =
     useState<UserProfile>(DEFAULT_USER);
 
-  const [programs, setPrograms] = useState(INITIAL_PROGRAMS);
+  /* -------------------------------------------------------
+   * DATA PUSAT + SINKRONISASI DATABASE
+   * Semua menu (Master Data, Manajemen, Checklist, Dashboard,
+   * Laporan) membaca & menulis state ini; perubahan otomatis
+   * disimpan ke MySQL lewat backend bila tersedia.
+   * ----------------------------------------------------- */
+  const [programs, setProgramsState] = useState<Program[]>(() =>
+    normalizePrograms(INITIAL_PROGRAMS)
+  );
+  const [checklist, setChecklist] = useState<ChecklistState>(() =>
+    buildInitialChecklist(INITIAL_PROGRAMS)
+  );
+  type SyncState = 'checking' | 'online' | 'saving' | 'saved' | 'offline' | 'error';
+  const [syncState, setSyncState] = useState<SyncState>('checking');
+  const [syncMessage, setSyncMessage] = useState('');
+  const backendReady = useRef(false);
+  const programsDirty = useRef(false);
+
+  const setPrograms = useCallback(
+    (next: Program[] | ((previous: Program[]) => Program[])) => {
+      programsDirty.current = true;
+      setProgramsState(previous =>
+        normalizePrograms(
+          typeof next === 'function' ? (next as (p: Program[]) => Program[])(previous) : next
+        )
+      );
+    },
+    []
+  );
+
+  const [managementFocus, setManagementFocus] =
+    useState<ManagementFocus | null>(null);
+  const [checklistFocus, setChecklistFocus] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] =
     useState<ActiveTab>('dashboard');
@@ -177,6 +227,116 @@ export default function App() {
     markNotificationRead(notification.id);
     setNotificationDrawerOpen(false);
     setActiveTab(notification.targetTab);
+
+    // Buka langsung program / task / sub task yang dirujuk.
+    if (notification.targetTab === 'management' && notification.target) {
+      setManagementFocus({ ...notification.target });
+    }
+    if (notification.targetTab === 'checklist' && notification.target?.programId) {
+      setChecklistFocus(notification.target.programId);
+    }
+  };
+
+  /* Muat data dari database setelah login. */
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let cancelled = false;
+
+    (async () => {
+      setSyncState('checking');
+      const online = await checkBackend();
+      if (cancelled) return;
+
+      if (!online) {
+        backendReady.current = false;
+        setSyncState('offline');
+        setSyncMessage('Database belum terhubung – perubahan hanya tersimpan selama sesi ini.');
+        return;
+      }
+
+      try {
+        const snapshot = await fetchSnapshot();
+        if (cancelled) return;
+
+        if (snapshot.programs.length > 0) {
+          programsDirty.current = false;
+          setProgramsState(normalizePrograms(snapshot.programs));
+          setChecklist(mergeChecklistDefaults(snapshot.programs, snapshot.checklist || {}));
+        } else {
+          // Database masih kosong -> isi dengan data awal (seed otomatis).
+          await savePrograms(normalizePrograms(INITIAL_PROGRAMS), currentUser.name);
+          await saveChecklistAll(buildInitialChecklist(INITIAL_PROGRAMS), currentUser.name);
+        }
+
+        backendReady.current = true;
+        setSyncState('online');
+        setSyncMessage(
+          snapshot.updatedAt
+            ? `Data dari database · update terakhir ${new Date(snapshot.updatedAt).toLocaleString('id-ID')}`
+            : 'Terhubung ke database'
+        );
+      } catch (error: any) {
+        backendReady.current = false;
+        setSyncState('error');
+        setSyncMessage(`Gagal memuat database: ${error?.message || error}`);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  /* Simpan perubahan program/task/sub task (debounce 700 ms). */
+  useEffect(() => {
+    if (!backendReady.current || !programsDirty.current) return;
+
+    const timer = setTimeout(async () => {
+      programsDirty.current = false;
+      setSyncState('saving');
+      try {
+        await savePrograms(programs, currentUser.name);
+        setSyncState('saved');
+        setSyncMessage(`Tersimpan ke database · ${new Date().toLocaleTimeString('id-ID')}`);
+      } catch (error: any) {
+        programsDirty.current = true;
+        setSyncState('error');
+        setSyncMessage(`Gagal menyimpan: ${error?.message || error}`);
+      }
+    }, 700);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programs]);
+
+  const handleChecklistChange = (
+    programId: string,
+    documentKey: string,
+    entry: ChecklistEntry
+  ) => {
+    setChecklist(previous => ({
+      ...previous,
+      [programId]: { ...(previous[programId] || {}), [documentKey]: entry },
+    }));
+
+    if (!backendReady.current) return;
+
+    // URL blob: hanya berlaku di browser ini, jadi tidak disimpan.
+    const persisted = {
+      ...entry,
+      fileUrl: entry.fileUrl?.startsWith('blob:') ? '' : entry.fileUrl,
+    };
+    setSyncState('saving');
+    saveChecklistEntry(programId, documentKey, persisted, currentUser.name)
+      .then(() => {
+        setSyncState('saved');
+        setSyncMessage(`Checklist tersimpan · ${new Date().toLocaleTimeString('id-ID')}`);
+      })
+      .catch((error: any) => {
+        setSyncState('error');
+        setSyncMessage(`Gagal menyimpan checklist: ${error?.message || error}`);
+      });
   };
 
   const [chatInput, setChatInput] = useState('');
@@ -747,6 +907,36 @@ export default function App() {
             />
 
             <div
+              className={`
+                hidden h-10 items-center gap-2 rounded-xl border px-3
+                text-[10px] font-semibold shadow-sm md:flex
+                ${
+                  syncState === 'offline' || syncState === 'error'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                }
+              `}
+              title={syncMessage}
+            >
+              {syncState === 'checking' || syncState === 'saving' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : syncState === 'offline' || syncState === 'error' ? (
+                <CloudOff className="h-4 w-4" />
+              ) : (
+                <Cloud className="h-4 w-4" />
+              )}
+              {syncState === 'checking'
+                ? 'Menghubungkan…'
+                : syncState === 'saving'
+                  ? 'Menyimpan…'
+                  : syncState === 'offline'
+                    ? 'Mode Lokal'
+                    : syncState === 'error'
+                      ? 'Gagal Sinkron'
+                      : 'Tersimpan di Database'}
+            </div>
+
+            <div
               className="
                 hidden h-10 items-center gap-2
                 rounded-xl border border-slate-200
@@ -754,7 +944,7 @@ export default function App() {
                 text-[10px] font-semibold text-[#0B2A63]
                 shadow-sm md:flex
               "
-              title="Tanggal referensi data prototype"
+              title="Tanggal acuan data (hari ini)"
             >
               <CalendarDays className="h-4 w-4 text-blue-600" />
               {headerReferenceDate}
@@ -883,6 +1073,8 @@ export default function App() {
               <ProgramManagement
                 programs={programs}
                 setPrograms={setPrograms}
+                focus={managementFocus}
+                onFocusHandled={() => setManagementFocus(null)}
               />
             )}
 
@@ -891,7 +1083,14 @@ export default function App() {
             )}
 
             {activeTab === 'checklist' && (
-              <ChecklistStages programs={programs} />
+              <ChecklistStages
+                programs={programs}
+                checklist={checklist}
+                onChecklistChange={handleChecklistChange}
+                focusProgramId={checklistFocus}
+                onFocusHandled={() => setChecklistFocus(null)}
+                backendOnline={syncState !== 'offline' && syncState !== 'error' && syncState !== 'checking'}
+              />
             )}
 
             {activeTab === 'notifications' && (

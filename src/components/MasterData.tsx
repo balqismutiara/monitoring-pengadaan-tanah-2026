@@ -311,10 +311,10 @@ const makeId = (prefix: string) =>
   `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const statusLabel = (status: string) => {
-  if (status === 'DONE') return 'DONE';
-  if (status === 'DELAYED') return 'DELAYED';
-  if (status === 'NOT_STARTED') return 'BELUM MULAI';
-  return 'WIP';
+  if (status === 'DONE') return 'Selesai';
+  if (status === 'DELAYED') return 'Tertunda';
+  if (status === 'NOT_STARTED') return 'Belum Mulai';
+  return 'Proses';
 };
 
 export function MasterData({
@@ -852,7 +852,7 @@ export function MasterData({
       'Sub Task':
         row.subTaskName === '-' ? '' : row.subTaskName,
       'PIC (PJ)': row.pic === '-' ? '' : row.pic,
-      Status: row.status,
+      Status: statusLabel(row.status),
       'Progress %': row.progress,
       'Tgl Mulai': row.startDate,
       'Tgl Target': row.targetDate,
@@ -1700,7 +1700,7 @@ function StatusBadge({
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[8px] font-bold text-emerald-700">
         <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-        DONE
+        SELESAI
       </span>
     );
   }
@@ -1709,7 +1709,7 @@ function StatusBadge({
     return (
       <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-2 py-1 text-[8px] font-bold text-red-600">
         <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
-        DELAYED
+        TERTUNDA
       </span>
     );
   }
@@ -1726,7 +1726,7 @@ function StatusBadge({
   return (
     <span className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[8px] font-bold text-amber-700">
       <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-      WIP
+      PROSES
     </span>
   );
 }
@@ -1914,12 +1914,10 @@ function SubTaskFields({
             }
             className={inputClass}
           >
-            <option value="DONE">DONE</option>
-            <option value="WIP">WIP</option>
-            <option value="DELAYED">DELAYED</option>
-            <option value="NOT_STARTED">
-              BELUM MULAI
-            </option>
+            <option value="NOT_STARTED">Belum Mulai</option>
+            <option value="WIP">Proses</option>
+            <option value="DONE">Selesai</option>
+            <option value="DELAYED">Tertunda</option>
           </select>
         </FormField>
 
