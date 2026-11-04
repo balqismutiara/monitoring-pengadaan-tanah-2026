@@ -237,22 +237,34 @@ export default function App() {
     }
   };
 
-  /* Muat data dari database setelah login. */
+  /* Muat data dari database setelah login – dan coba sambung ulang
+     otomatis (setiap 10 detik) atau saat label status diklik. */
+  const [connectAttempt, setConnectAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (syncState !== 'offline' && syncState !== 'error') return;
+    const timer = setTimeout(() => setConnectAttempt(n => n + 1), 10000);
+    return () => clearTimeout(timer);
+  }, [isLoggedIn, syncState, connectAttempt]);
+
   useEffect(() => {
     if (!isLoggedIn) return;
     let cancelled = false;
+    const silentRetry = connectAttempt > 0;
 
     (async () => {
-      setSyncState('checking');
+      if (!silentRetry) setSyncState('checking');
       const online = await checkBackend();
       if (cancelled) return;
 
       if (!online) {
         backendReady.current = false;
         setSyncState('offline');
-        setSyncMessage('Database belum terhubung – perubahan hanya tersimpan selama sesi ini.');
+        setSyncMessage('Database belum terhubung – mencoba menyambung ulang otomatis setiap 10 detik. Perubahan saat ini hanya tersimpan selama sesi.');
         return;
       }
+      if (backendReady.current) return;
 
       try {
         const snapshot = await fetchSnapshot();
@@ -271,9 +283,10 @@ export default function App() {
         backendReady.current = true;
         setSyncState('online');
         setSyncMessage(
-          snapshot.updatedAt
-            ? `Data dari database · update terakhir ${new Date(snapshot.updatedAt).toLocaleString('id-ID')}`
-            : 'Terhubung ke database'
+          (silentRetry ? 'Tersambung ulang ke database (data dimuat dari database). ' : '') +
+            (snapshot.updatedAt
+              ? `Data dari database · update terakhir ${new Date(snapshot.updatedAt).toLocaleString('id-ID')}`
+              : 'Terhubung ke database')
         );
       } catch (error: any) {
         backendReady.current = false;
@@ -286,7 +299,7 @@ export default function App() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoggedIn]);
+  }, [isLoggedIn, connectAttempt]);
 
   /* Simpan perubahan program/task/sub task (debounce 700 ms). */
   useEffect(() => {
@@ -906,7 +919,14 @@ export default function App() {
               onOpenNotification={openNotification}
             />
 
-            <div
+            <button
+              type="button"
+              onClick={() => {
+                if (syncState === 'offline' || syncState === 'error') {
+                  setSyncState('checking');
+                  setConnectAttempt(n => n + 1);
+                }
+              }}
               className={`
                 hidden h-10 items-center gap-2 rounded-xl border px-3
                 text-[10px] font-semibold shadow-sm md:flex
@@ -934,7 +954,7 @@ export default function App() {
                     : syncState === 'error'
                       ? 'Gagal Sinkron'
                       : 'Tersimpan di Database'}
-            </div>
+            </button>
 
             <div
               className="
