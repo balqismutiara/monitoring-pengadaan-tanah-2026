@@ -72,6 +72,12 @@ export async function getSnapshot() {
       type: row.type,
       url: row.url || "",
       uploadedAt: row.uploaded_at || undefined,
+      category: row.category || undefined,
+      documentNumber: row.document_number || undefined,
+      documentDate: row.document_date || undefined,
+      uploadedBy: row.uploaded_by || undefined,
+      stage: row.stage || undefined,
+      notes: row.notes || undefined,
     });
   });
 
@@ -194,6 +200,12 @@ export async function savePrograms(programs, changedBy = "Sistem") {
     await connection.beginTransaction();
 
     const [existingSubRows] = await connection.query("SELECT * FROM sub_tasks");
+    const [existingAttachmentRows] = await connection.query("SELECT id, sub_task_id, name FROM attachments");
+    const attachmentsBySubBefore = new Map();
+    existingAttachmentRows.forEach(row => {
+      if (!attachmentsBySubBefore.has(row.sub_task_id)) attachmentsBySubBefore.set(row.sub_task_id, []);
+      attachmentsBySubBefore.get(row.sub_task_id).push(row);
+    });
     const existingSubs = new Map(existingSubRows.map(row => [row.id, row]));
     const [existingTaskRows] = await connection.query("SELECT id, name, program_id FROM tasks");
     const existingTasks = new Map(existingTaskRows.map(row => [row.id, row]));
@@ -340,19 +352,42 @@ export async function savePrograms(programs, changedBy = "Sistem") {
           );
 
           await connection.query("DELETE FROM attachments WHERE sub_task_id = ?", [sub.id]);
+          const previousAttachments = new Map(
+            (attachmentsBySubBefore.get(sub.id) || []).map(row => [row.id, row]),
+          );
           const attachmentRows = (sub.attachments || [])
             .filter(att => att && att.name)
-            .map(att => [
-              String(att.id || `${sub.id}-${att.name}`).slice(0, 60),
-              sub.id,
-              String(att.name).slice(0, 255),
-              ["PDF", "DOCX", "IMAGE", "ZIP"].includes(att.type) ? att.type : "OTHER",
-              att.url && !String(att.url).startsWith("blob:") ? att.url : null,
-              toDate(att.uploadedAt),
-            ]);
+            .map(att => {
+              const id = String(att.id || `${sub.id}-${att.name}`).slice(0, 60);
+              if (!previousAttachments.has(id)) {
+                log("SUB_TASK", sub.id, "CREATE", "dokumen", null, att.name, `Dokumen ditambahkan: ${att.name}`);
+              }
+              previousAttachments.delete(id);
+              return [
+                id,
+                sub.id,
+                String(att.name).slice(0, 255),
+                ["PDF", "DOCX", "IMAGE", "ZIP"].includes(att.type) ? att.type : "OTHER",
+                att.url && !String(att.url).startsWith("blob:") ? String(att.url).slice(0, 1000) : null,
+                toDate(att.uploadedAt),
+                att.category ? String(att.category).slice(0, 80) : null,
+                att.documentNumber ? String(att.documentNumber).slice(0, 120) : null,
+                toDate(att.documentDate),
+                att.uploadedBy ? String(att.uploadedBy).slice(0, 150) : null,
+                att.stage ? String(att.stage).slice(0, 40) : null,
+                att.notes ? String(att.notes).slice(0, 500) : null,
+              ];
+            });
+          previousAttachments.forEach(row =>
+            log("SUB_TASK", sub.id, "DELETE", "dokumen", row.name, null, `Dokumen dihapus: ${row.name}`),
+          );
           if (attachmentRows.length) {
             await connection.query(
-              "INSERT INTO attachments (id, sub_task_id, name, type, url, uploaded_at) VALUES ? ON DUPLICATE KEY UPDATE name=VALUES(name)",
+              `INSERT INTO attachments (id, sub_task_id, name, type, url, uploaded_at, category, document_number,
+                 document_date, uploaded_by, stage, notes) VALUES ?
+               ON DUPLICATE KEY UPDATE sub_task_id=VALUES(sub_task_id), name=VALUES(name), type=VALUES(type), url=VALUES(url),
+                 uploaded_at=VALUES(uploaded_at), category=VALUES(category), document_number=VALUES(document_number),
+                 document_date=VALUES(document_date), uploaded_by=VALUES(uploaded_by), stage=VALUES(stage), notes=VALUES(notes)`,
               [attachmentRows],
             );
           }

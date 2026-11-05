@@ -1,9 +1,19 @@
 export interface Attachment {
   id: string;
   name: string;
+  /** Format file */
   type: 'PDF' | 'DOCX' | 'IMAGE' | 'ZIP' | 'OTHER';
+  /** Link dokumen (OneDrive / SharePoint / Google Drive) */
   url: string;
   uploadedAt?: string;
+  /** Jenis dokumen, mis. Berita Acara, Sertipikat / Alas Hak */
+  category?: string;
+  documentNumber?: string;
+  documentDate?: string;
+  uploadedBy?: string;
+  /** Tahapan: Perencanaan / Persiapan / Pelaksanaan / Penyerahan Hasil / Pensertipikatan */
+  stage?: string;
+  notes?: string;
 }
 
 /** DONE = Selesai, WIP = Proses, NOT_STARTED = Belum Mulai, DELAYED = Tertunda */

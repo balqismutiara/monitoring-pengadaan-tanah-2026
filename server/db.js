@@ -31,3 +31,38 @@ export async function isDatabaseReady() {
     return { ready: false, error: error.message };
   }
 }
+
+/**
+ * Migrasi otomatis (aman dijalankan berulang): menambah kolom baru pada
+ * database yang dibuat dengan versi skema sebelumnya.
+ */
+const MIGRATIONS = [
+  ["attachments", "category", "VARCHAR(80) NULL COMMENT 'Jenis dokumen'"],
+  ["attachments", "document_number", "VARCHAR(120) NULL"],
+  ["attachments", "document_date", "DATE NULL"],
+  ["attachments", "uploaded_by", "VARCHAR(150) NULL"],
+  ["attachments", "stage", "VARCHAR(40) NULL"],
+  ["attachments", "notes", "VARCHAR(500) NULL"],
+];
+
+export async function migrate() {
+  try {
+    const [rows] = await pool.query(
+      "SELECT TABLE_NAME AS t, COLUMN_NAME AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ?",
+      [DB_NAME],
+    );
+    const existing = new Set(rows.map(row => `${row.t}.${row.c}`));
+    const tables = new Set(rows.map(row => row.t));
+    const applied = [];
+    for (const [table, column, definition] of MIGRATIONS) {
+      if (!tables.has(table) || existing.has(`${table}.${column}`)) continue;
+      await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+      applied.push(`${table}.${column}`);
+    }
+    if (applied.length) console.log(`✓ Migrasi database: ${applied.join(", ")}`);
+    return applied;
+  } catch (error) {
+    console.warn("⚠ Migrasi database dilewati:", error.message);
+    return [];
+  }
+}

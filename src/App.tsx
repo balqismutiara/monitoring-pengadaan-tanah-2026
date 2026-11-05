@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { INITIAL_PROGRAMS } from './data';
 import { calculateDashboardStats, normalizePrograms } from './utils';
-import { Program } from './types';
+import { Attachment, Program } from './types';
 import {
   buildInitialChecklist,
   ChecklistEntry,
@@ -322,6 +322,34 @@ export default function App() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [programs]);
+
+  /** Tambah / hapus lampiran (link OneDrive) pada sub task -> tersimpan ke database. */
+  const updateSubTaskAttachments = (
+    target: { programId: string; taskId: string; subTaskId: string },
+    change: (list: Attachment[]) => Attachment[]
+  ) => {
+    setPrograms(previous =>
+      previous.map(program =>
+        program.id !== target.programId
+          ? program
+          : {
+              ...program,
+              tasks: program.tasks.map(task =>
+                task.id !== target.taskId
+                  ? task
+                  : {
+                      ...task,
+                      subTasks: task.subTasks.map(subTask =>
+                        subTask.id !== target.subTaskId
+                          ? subTask
+                          : { ...subTask, attachments: change(subTask.attachments || []) }
+                      ),
+                    }
+              ),
+            }
+      )
+    );
+  };
 
   const handleChecklistChange = (
     programId: string,
@@ -1099,7 +1127,19 @@ export default function App() {
             )}
 
             {activeTab === 'archive' && (
-              <ArchiveDocuments programs={programs} />
+              <ArchiveDocuments
+                programs={programs}
+                checklist={checklist}
+                currentUserName={currentUser.name}
+                onAddDocument={(target, attachment) =>
+                  updateSubTaskAttachments(target, list => [...list, attachment])
+                }
+                onDeleteDocument={(target, attachmentId) =>
+                  updateSubTaskAttachments(target, list =>
+                    list.filter(item => item.id !== attachmentId)
+                  )
+                }
+              />
             )}
 
             {activeTab === 'checklist' && (

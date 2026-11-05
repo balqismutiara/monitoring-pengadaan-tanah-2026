@@ -9,7 +9,7 @@
 import fs from 'fs';
 import path from 'path';
 import mysql from 'mysql2/promise';
-import { dbConfig, DB_NAME, pool } from './db.js';
+import { dbConfig, DB_NAME, pool, migrate } from './db.js';
 import { savePrograms, saveChecklistAll, saveRkmSummary } from './repository.js';
 import { INITIAL_PROGRAMS, RKM_SUMMARY } from '../src/data';
 import { buildInitialChecklist, DEFAULT_STAGE_DOCUMENTS, STAGES, checklistDocKey } from '../src/checklist';
@@ -31,6 +31,7 @@ async function main() {
   console.log('→ Membuat tabel & view (database/schema.sql)');
   await admin.query(schema);
   await admin.end();
+  await migrate();
 
   console.log('→ Mengisi master dokumen tahapan');
   const docRows: any[] = [];

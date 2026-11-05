@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { google } from "googleapis";
-import { isDatabaseReady, DB_NAME } from "./db.js";
+import { isDatabaseReady, DB_NAME, migrate } from "./db.js";
 import {
   getActivity,
   getSnapshot,
@@ -159,6 +159,8 @@ app.get("/api/google/callback", async (req, res) => {
 // ======================================================
 // START SERVER
 // ======================================================
+
+migrate();
 
 app.listen(PORT, () => {
   console.log("");

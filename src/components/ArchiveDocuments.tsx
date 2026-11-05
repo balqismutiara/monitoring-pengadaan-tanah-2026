@@ -1,5 +1,18 @@
 import React, { useMemo, useState } from 'react';
+import type { Attachment } from '../types';
+import { ChecklistState, DEFAULT_STAGE_DOCUMENTS, STAGES } from '../checklist';
 import {
+  buildAttachment,
+  DOCUMENT_CATEGORIES,
+  DOCUMENT_STAGES,
+  isFormatCode,
+  isValidLink,
+  linkSource,
+} from '../documents';
+import {
+  Link2,
+  Plus,
+  Trash2,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -11,8 +24,20 @@ import {
   X,
 } from 'lucide-react';
 
+export interface DocumentTarget {
+  programId: string;
+  taskId: string;
+  subTaskId: string;
+}
+
 interface ArchiveDocumentsProps {
   programs?: any[];
+  /** Dokumen checklist tahapan yang berstatus Tersedia ikut ditampilkan. */
+  checklist?: ChecklistState;
+  /** Simpan dokumen (link OneDrive) ke sub task -> tersimpan di database. */
+  onAddDocument?: (target: DocumentTarget, attachment: Attachment) => void;
+  onDeleteDocument?: (target: DocumentTarget, attachmentId: string) => void;
+  currentUserName?: string;
 }
 
 interface ArchiveDocumentRow {
@@ -28,6 +53,13 @@ interface ArchiveDocumentRow {
   uploadDate: string;
   fileName?: string;
   fileUrl?: string;
+  /** Asal dokumen: lampiran sub task atau checklist tahapan */
+  source?: 'Sub Task' | 'Checklist';
+  taskName?: string;
+  subTaskName?: string;
+  target?: DocumentTarget;
+  attachmentId?: string;
+  notes?: string;
 }
 
 const ITEMS_PER_PAGE = 8;
@@ -65,11 +97,11 @@ const normalizeStage = (...values: any[]) => {
 
 const inferDocumentType = (document: any) => {
   const explicitType = getText(
-    document?.type,
+    document?.category,
     document?.documentType,
     document?.jenisDokumen,
-    document?.category,
     document?.kategori,
+    isFormatCode(document?.type) ? '' : document?.type,
   );
 
   if (explicitType) return explicitType;
@@ -265,6 +297,10 @@ const flattenArchiveDocuments = (
         program?.stage,
       );
 
+      const programId = getText(program?.id, `program-${programIndex}`);
+      const taskId = getText(task?.id);
+      const subTaskId = getText(subTask?.id);
+
       const fingerprint = [
         sourceId,
         programName,
@@ -299,6 +335,12 @@ const flattenArchiveDocuments = (
         uploadDate,
         fileName: fileName || undefined,
         fileUrl: fileUrl || undefined,
+        source: 'Sub Task',
+        taskName: getText(task?.name) || undefined,
+        subTaskName: getText(subTask?.name) || undefined,
+        target: subTaskId ? { programId, taskId, subTaskId } : undefined,
+        attachmentId: subTaskId && sourceId ? sourceId : undefined,
+        notes: getText(document?.notes) || undefined,
       });
     });
   };
@@ -341,7 +383,7 @@ const flattenArchiveDocuments = (
 
       subTasks.forEach((subTask: any, subTaskIndex: number) => {
         appendDocuments({
-          documents: subTask?.documents || subTask?.dokumen,
+          documents: subTask?.attachments || subTask?.documents || subTask?.dokumen,
           program,
           task,
           subTask,
@@ -376,15 +418,55 @@ const flattenArchiveDocuments = (
   });
 
   return rows.sort((a, b) => {
+    if (a.source !== b.source) return a.source === 'Sub Task' ? -1 : 1;
     const dateA = toDate(a.uploadDate)?.getTime() ?? 0;
     const dateB = toDate(b.uploadDate)?.getTime() ?? 0;
     return dateB - dateA;
   });
 };
 
+/** Dokumen checklist tahapan yang berstatus Tersedia. */
+const flattenChecklistDocuments = (
+  programs: any[],
+  checklist: ChecklistState,
+): ArchiveDocumentRow[] => {
+  const rows: ArchiveDocumentRow[] = [];
+  programs.forEach((program, programIndex) => {
+    const entries = checklist[String(program?.id)] || {};
+    STAGES.forEach((stage) => {
+      DEFAULT_STAGE_DOCUMENTS[stage].forEach((name, index) => {
+        const entry = entries[`default-${stage}-${index}`];
+        if (!entry || entry.status !== 'AVAILABLE') return;
+        rows.push({
+          archiveId: `CHK-${String(programIndex + 1).padStart(2, '0')}-${STAGES.indexOf(stage) + 1}${String(index + 1).padStart(2, '0')}`,
+          name,
+          type: 'Checklist Tahapan',
+          programName: getText(program?.name, `Program ${programIndex + 1}`),
+          stage,
+          documentNumber: '-',
+          documentDate: '',
+          uploader: getText(entry.pic, program?.pic, '-'),
+          uploadDate: getText(entry.uploadDate),
+          fileName: entry.fileName || undefined,
+          fileUrl: entry.fileUrl && !entry.fileUrl.startsWith('blob:') ? entry.fileUrl : undefined,
+          source: 'Checklist',
+          notes: entry.notes,
+        });
+      });
+    });
+  });
+  return rows;
+};
+
 export function ArchiveDocuments({
   programs = [],
+  checklist = {},
+  onAddDocument,
+  onDeleteDocument,
+  currentUserName,
 }: ArchiveDocumentsProps) {
+  const [addOpen, setAddOpen] = useState(false);
+  const [includeChecklist, setIncludeChecklist] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedProgram, setSelectedProgram] = useState('ALL');
   const [selectedStage, setSelectedStage] = useState('ALL');
@@ -395,9 +477,13 @@ export function ArchiveDocuments({
     useState<ArchiveDocumentRow | null>(null);
 
   const allDocuments = useMemo(
-    () => flattenArchiveDocuments(programs),
-    [programs],
+    () => [
+      ...flattenArchiveDocuments(programs),
+      ...(includeChecklist ? flattenChecklistDocuments(programs, checklist) : []),
+    ],
+    [programs, checklist, includeChecklist],
   );
+  const linkedCount = allDocuments.filter((document) => document.source === 'Sub Task').length;
 
   const programOptions = useMemo(
     () =>
@@ -650,8 +736,31 @@ export function ArchiveDocuments({
               </p>
             </div>
 
-            <div className="rounded-lg bg-blue-50 px-3 py-2 text-[10px] font-semibold text-blue-700">
-              {filteredDocuments.length} dokumen ditemukan
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 text-[10px] font-semibold text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={includeChecklist}
+                  onChange={(event) => {
+                    setIncludeChecklist(event.target.checked);
+                    setPage(1);
+                  }}
+                />
+                Tampilkan dokumen checklist
+              </label>
+              <div className="rounded-lg bg-blue-50 px-3 py-2 text-[10px] font-semibold text-blue-700">
+                {filteredDocuments.length} dokumen ditemukan · {linkedCount} tertaut OneDrive/link
+              </div>
+              {onAddDocument && (
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#0B5AA8] px-3 text-[10px] font-bold text-white hover:bg-[#094b8c]"
+                >
+                  <Plus size={14} />
+                  Tambah Dokumen (Link OneDrive)
+                </button>
+              )}
             </div>
           </div>
 
@@ -687,9 +796,9 @@ export function ArchiveDocuments({
                       </p>
 
                       <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-[#8a9ab0]">
-                        Sistem hanya menampilkan dokumen yang benar-benar
-                        tersedia pada data program, task, atau sub-task.
-                        Dokumen contoh tidak dibuat otomatis.
+                        Klik "Tambah Dokumen (Link OneDrive)" untuk menautkan
+                        dokumen ke sub task. Dokumen checklist berstatus
+                        Tersedia juga tampil di sini.
                       </p>
                     </td>
                   </tr>
@@ -710,9 +819,17 @@ export function ArchiveDocuments({
                       </TableCell>
 
                       <TableCell>
-                        <div className="max-w-[190px] font-semibold leading-[1.45] text-[#142b4d]">
+                        <div className="max-w-[220px] font-semibold leading-[1.45] text-[#142b4d]">
                           {document.name}
                         </div>
+                        {(document.subTaskName || document.fileUrl) && (
+                          <div className="mt-0.5 max-w-[220px] text-[9px] leading-4 text-slate-400">
+                            {document.subTaskName}
+                            {document.fileUrl && (
+                              <span className="ml-1 font-semibold text-emerald-600">· {linkSource(document.fileUrl)}</span>
+                            )}
+                          </div>
+                        )}
                       </TableCell>
 
                       <TableCell>
@@ -792,14 +909,27 @@ export function ArchiveDocuments({
                             <Download size={14} />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() => setPreviewDocument(document)}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-[#dce4ee] bg-white text-[#506884] transition hover:bg-[#f8fafc]"
-                            title="Menu dokumen"
-                          >
-                            <MoreVertical size={14} />
-                          </button>
+                          {document.attachmentId && document.target && onDeleteDocument ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm(`Hapus tautan dokumen "${document.name}"? File di OneDrive tidak ikut terhapus.`)) {
+                                  onDeleteDocument(document.target!, document.attachmentId!);
+                                }
+                              }}
+                              className="grid h-8 w-8 place-items-center rounded-lg border border-red-100 bg-white text-red-500 transition hover:bg-red-50"
+                              title="Hapus tautan dokumen"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          ) : (
+                            <span
+                              className="inline-flex h-8 items-center rounded-lg bg-slate-50 px-2 text-[8.5px] font-semibold text-slate-500"
+                              title={document.source === 'Checklist' ? 'Kelola di menu Checklist Tahapan' : ''}
+                            >
+                              {document.source === 'Checklist' ? 'Checklist' : '-'}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                     </tr>
@@ -881,6 +1011,19 @@ export function ArchiveDocuments({
       </div>
 
       {/* DETAIL MODAL */}
+      {addOpen && onAddDocument && (
+        <AddDocumentModal
+          programs={programs}
+          currentUserName={currentUserName}
+          onClose={() => setAddOpen(false)}
+          onSave={(target, attachment) => {
+            onAddDocument(target, attachment);
+            setAddOpen(false);
+            setPage(1);
+          }}
+        />
+      )}
+
       {previewDocument && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]">
           <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -1050,6 +1193,167 @@ function DetailField({
       <p className="mt-1.5 break-words text-[11px] font-semibold text-slate-700">
         {value || '-'}
       </p>
+    </div>
+  );
+}
+
+/* =====================================================================
+ * Modal tambah dokumen (link OneDrive)
+ * ===================================================================== */
+function AddDocumentModal({
+  programs,
+  currentUserName,
+  onClose,
+  onSave,
+}: {
+  programs: any[];
+  currentUserName?: string;
+  onClose: () => void;
+  onSave: (target: DocumentTarget, attachment: Attachment) => void;
+}) {
+  const [programId, setProgramId] = useState(getText(programs[0]?.id));
+  const program = programs.find((item) => String(item.id) === programId);
+  const tasks: any[] = program?.tasks || [];
+  const [taskId, setTaskId] = useState(getText(tasks[0]?.id));
+  const task = tasks.find((item) => String(item.id) === taskId);
+  const subTasks: any[] = task?.subTasks || [];
+  const [subTaskId, setSubTaskId] = useState(getText(subTasks[0]?.id));
+  const [form, setForm] = useState({
+    name: '',
+    url: '',
+    category: 'Dokumen Pendukung',
+    documentNumber: '',
+    documentDate: '',
+    stage: '',
+    notes: '',
+  });
+  const [error, setError] = useState('');
+
+  const update = (key: keyof typeof form, value: string) =>
+    setForm((previous) => ({ ...previous, [key]: value }));
+
+  const submit = () => {
+    if (!subTaskId) return setError('Pilih sub task tujuan.');
+    if (!form.name.trim()) return setError('Nama dokumen wajib diisi.');
+    if (!isValidLink(form.url)) return setError('Link harus diawali https:// – salin dari OneDrive: Share → Copy link.');
+    onSave(
+      { programId, taskId, subTaskId },
+      buildAttachment({ ...form, uploadedBy: currentUserName }),
+    );
+  };
+
+  const inputClass =
+    'h-10 w-full rounded-xl border border-[#dce4ef] bg-white px-3 text-[11px] text-[#233b62] outline-none focus:border-[#1666c5] focus:ring-2 focus:ring-[#1666c5]/10';
+
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-[#07172b]/45 p-4">
+      <div className="max-h-[94vh] w-full max-w-[760px] overflow-y-auto rounded-[20px] bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
+          <div>
+            <h3 className="text-[16px] font-bold text-[#142b4d]">Tambah Dokumen (Link OneDrive)</h3>
+            <p className="mt-1 text-[10.5px] text-slate-500">
+              Tautkan dokumen yang tersimpan di OneDrive / SharePoint ke sub task. Link tersimpan di database.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-slate-400 hover:bg-slate-50">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 px-6 py-5 md:grid-cols-2">
+          <label className="block md:col-span-2">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Program</span>
+            <select
+              value={programId}
+              onChange={(event) => {
+                const next = programs.find((item) => String(item.id) === event.target.value);
+                setProgramId(event.target.value);
+                const firstTask = next?.tasks?.[0];
+                setTaskId(getText(firstTask?.id));
+                setSubTaskId(getText(firstTask?.subTasks?.[0]?.id));
+              }}
+              className={inputClass}
+            >
+              {programs.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Task List</span>
+            <select
+              value={taskId}
+              onChange={(event) => {
+                const next = tasks.find((item) => String(item.id) === event.target.value);
+                setTaskId(event.target.value);
+                setSubTaskId(getText(next?.subTasks?.[0]?.id));
+              }}
+              className={inputClass}
+            >
+              {tasks.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Sub Task</span>
+            <select value={subTaskId} onChange={(event) => setSubTaskId(event.target.value)} className={inputClass}>
+              {subTasks.map((item) => (
+                <option key={item.id} value={item.id}>{item.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block md:col-span-2">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Nama dokumen *</span>
+            <input value={form.name} onChange={(event) => update('name', event.target.value)} placeholder="mis. BA Kesepakatan Lokasi Tanah Pengganti" className={inputClass} />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-[#405a79]">
+              <Link2 size={12} /> Link OneDrive / SharePoint *
+            </span>
+            <input value={form.url} onChange={(event) => update('url', event.target.value)} placeholder="https://pelindo-my.sharepoint.com/..." className={inputClass} />
+            <span className="mt-1 block text-[9.5px] text-slate-400">
+              Di OneDrive: klik kanan file → <b>Share</b> → <b>Copy link</b>. Pastikan akses link untuk rekan yang perlu membuka.
+              {form.url && isValidLink(form.url) && <b className="ml-1 text-emerald-600">✓ {linkSource(form.url)}</b>}
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Jenis dokumen</span>
+            <select value={form.category} onChange={(event) => update('category', event.target.value)} className={inputClass}>
+              {DOCUMENT_CATEGORIES.map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Tahapan</span>
+            <select value={form.stage} onChange={(event) => update('stage', event.target.value)} className={inputClass}>
+              <option value="">Ikuti tahapan task</option>
+              {DOCUMENT_STAGES.map((item) => <option key={item}>{item}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Nomor dokumen</span>
+            <input value={form.documentNumber} onChange={(event) => update('documentNumber', event.target.value)} placeholder="opsional" className={inputClass} />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Tanggal dokumen</span>
+            <input type="date" value={form.documentDate} onChange={(event) => update('documentDate', event.target.value)} className={inputClass} />
+          </label>
+          <label className="block md:col-span-2">
+            <span className="mb-1 block text-[10px] font-semibold text-[#405a79]">Keterangan</span>
+            <input value={form.notes} onChange={(event) => update('notes', event.target.value)} placeholder="opsional" className={inputClass} />
+          </label>
+          {error && <p className="text-[10.5px] font-semibold text-red-600 md:col-span-2">{error}</p>}
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-100 px-6 py-4">
+          <button type="button" onClick={onClose} className="h-10 rounded-xl border border-slate-200 px-4 text-[11px] font-semibold text-slate-600">
+            Batal
+          </button>
+          <button type="button" onClick={submit} className="h-10 rounded-xl bg-[#0B5AA8] px-5 text-[11px] font-bold text-white hover:bg-[#094b8c]">
+            Simpan Dokumen
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -45,3 +45,21 @@
 
 ## Notifikasi
 - Klik notifikasi membuka langsung sub task / task / program yang dirujuk (Manajemen atau Checklist).
+
+# Perubahan – 5 November 2026
+
+## Master Data (ditulis ulang)
+- 3 tab tabel sesuai struktur database: **Program**, **Task List**, **Sub Task** (tambah / edit / hapus di masing-masing).
+- Program: ID, kode RKM, PIC, aktual & baseline RKM, periode, narasi Capaian / Isu / Next Step.
+- Task List: program, jenis RKM/Non RKM, tahapan, kode, deskripsi; tombol tambah sub task langsung.
+- Sub Task: PIC, status, progres (Selesai ↔ 100% otomatis), mulai, target, jadwal estimasi, keterangan, **link dokumen OneDrive**.
+- Ringkasan jumlah di atas tabel; export Excel 3 sheet.
+
+## Arsip Dokumen + OneDrive (tahap 1)
+- Membaca lampiran sub task (`attachments`) dan dokumen checklist berstatus Tersedia.
+- Tombol **Tambah Dokumen (Link OneDrive)** dan hapus tautan; label sumber link (OneDrive/SharePoint/Google Drive).
+- Kolom baru `attachments`: jenis, nomor, tanggal dokumen, uploader, tahapan, keterangan – **migrasi otomatis** saat `npm run server`.
+- Panduan tahap 2 (integrasi penuh Microsoft Graph): `database/ONEDRIVE.md`.
+
+## Koneksi
+- Aplikasi menyambung ulang ke backend otomatis setiap 10 detik; label "Mode Lokal" bisa diklik.
